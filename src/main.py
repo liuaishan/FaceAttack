@@ -6,7 +6,7 @@ import torchvision
 import torchvision.transforms as transforms
 import torch.utils.data as Data
 from src.SE_ResNet_IR import *
-from src.DataLoader_lfw import *
+from src.lfw_DataLoader import *
 from torch.optim.lr_scheduler import StepLR
 import os
 from src.myDataLoader import *
