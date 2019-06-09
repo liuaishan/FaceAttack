@@ -64,7 +64,10 @@ def read_data_label(data_path, label_path):
     with open(label_path, 'rb') as fr:
         test_label = pickle.load(fr)
     return test_data, test_label, size
-
+def read_p_data(data_path):
+    with open(data_path, 'rb') as fr:
+        data = pickle.load(fr)
+    return data, torch.ones(len(data))
 # TODO 2
 # stick patch on face
 # @return (tensor) faces with patch
