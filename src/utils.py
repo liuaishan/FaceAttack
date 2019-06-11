@@ -72,4 +72,51 @@ def read_p_data(data_path):
 # stick patch on face
 # @return (tensor) faces with patch
 def stick_patch_on_face(faceTensor, patchTensor):
-    return None
+    
+    # position of patch
+
+    x=520
+        
+    y=350
+    
+
+    # get batch size of face dataset and patch dataset
+    
+    face_bsize = len(faceTensor)
+
+    patch_bsize = len(patchTensor)
+
+    
+    # stick every m patch data on k face data
+
+    for k in range(face_bsize):
+
+        face = faceTensor[k]
+
+        for m in range(patch_bsize):
+
+            patch = patchTensor[m]
+
+            for i in range(64):
+                
+                 for j in range(64):
+                        
+                        face[0][x+i][y+j] = patch[0][i][j]
+                    
+                        face[1][x+i][y+j] = patch[1][i][j]
+                        
+                        face[2][x+i][y+j] = patch[2][i][j]
+
+            if k==0 and m==0:
+
+                new = face.unsqueeze(0)
+
+                combineTensor = new
+
+            else:
+                
+                new = face.unsqueeze(0)
+                
+                combineTensor = torch.cat([combineTensor,new],0)
+
+    return combineTensor
