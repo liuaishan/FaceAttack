@@ -68,55 +68,40 @@ def read_p_data(data_path):
     with open(data_path, 'rb') as fr:
         data = pickle.load(fr)
     return data, torch.ones(len(data))
+
+
 # TODO 2
 # stick patch on face
 # @return (tensor) faces with patch
 def stick_patch_on_face(faceTensor, patchTensor):
-    
+   
     # position of patch
-
-    x=520
-        
-    y=350
+    x=100
+    y=150
     
-
     # get batch size of face dataset and patch dataset
-    
     face_bsize = len(faceTensor)
-
     patch_bsize = len(patchTensor)
-
     
+    #get size of patch data
+    size1 = len(patchTensor[0][0])
+    size2 = len(patchTensor[0][0][0])
+
     # stick every m patch data on k face data
-
     for k in range(face_bsize):
-
         face = faceTensor[k]
-
         for m in range(patch_bsize):
-
             patch = patchTensor[m]
-
-            for i in range(64):
-                
-                 for j in range(64):
-                        
-                        face[0][x+i][y+j] = patch[0][i][j]
-                    
-                        face[1][x+i][y+j] = patch[1][i][j]
-                        
-                        face[2][x+i][y+j] = patch[2][i][j]
-
+            for i in range(size1):   
+                 for j in range(size2):
+                     face[0][x+i][y+j] = patch[0][i][j]
+                     face[1][x+i][y+j] = patch[1][i][j] 
+                     face[2][x+i][y+j] = patch[2][i][j]
             if k==0 and m==0:
-
                 new = face.unsqueeze(0)
-
                 combineTensor = new
-
-            else:
-                
+            else:  
                 new = face.unsqueeze(0)
-                
                 combineTensor = torch.cat([combineTensor,new],0)
-
+                
     return combineTensor
