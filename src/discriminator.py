@@ -10,7 +10,7 @@ from StyleUtils import *
 
 class StyleDiscriminator(nn.Module):
     def __init__(self,
-                 resolution=32,  # 输入图片的分辨率 为 32* 32
+                 resolution=64,  # 输入图片的分辨率 为 64* 64
                  fmap_base=8192,
                  num_channels=3,
                  fmap_max=512,
