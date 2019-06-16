@@ -6,12 +6,8 @@ import os
 from collections import OrderedDict
 from torch.nn.init import kaiming_normal_
 from StyleUtils import *
-
-
-
-
-
-
+import torchvision.models as models
+device =  'cuda' if torch.cuda.is_available() else 'cpu'
 class LayerEpilogue(nn.Module):
     def __init__(self,
                  channels,
@@ -48,6 +44,7 @@ class LayerEpilogue(nn.Module):
         if self.pixel_norm is not None:
             x = self.pixel_norm(x)
         if self.instance_norm is not None:
+            print(x.shape)
             x = self.instance_norm(x)
         if self.style_mod is not None:
             x = self.style_mod(x, dlatents_in_slice)
@@ -105,13 +102,8 @@ class GBlock(nn.Module):
         x = self.adaIn2(x, self.noise_input[self.res*2-3], dlatent[:, self.res*2-3])
         return x
 
-#model.apply(weights_init)
-
-
 # =========================================================================
 #   Define sub-network
-#   2019.3.31
-#   FC
 # =========================================================================
 class G_mapping(nn.Module):
     def __init__(self,
@@ -167,7 +159,6 @@ class G_synthesis(nn.Module):
                  use_style = True                    # Enable style inputs?
                  ):                             # batch size.
         """
-            2019.3.31
         :param dlatent_size: 512 Disentangled latent(W) dimensionality.
         :param resolution: 1024 x 1024.
         :param fmap_base:
@@ -190,17 +181,17 @@ class G_synthesis(nn.Module):
         for layer_idx in range(num_layers):
             res = layer_idx // 2 + 2
             shape = [1, 1, 2 ** res, 2 ** res]
-            self.noise_inputs.append(torch.randn(*shape).to("cuda"))
+            self.noise_inputs.append(torch.randn(*shape).to(device))
 
         # Blur2d
         self.blur = Blur2d(f)
 
         # torgb: fixed mode
-        self.channel_shrinkage = Conv2d(input_channels=self.nf(self.resolution_log2-2),
-                                        output_channels=self.nf(self.resolution_log2),
+        self.channel_shrinkage = Conv2d(input_channels=512,
+                                        output_channels=512,
                                         kernel_size=3,
                                         use_wscale=use_wscale)
-        self.torgb = Conv2d(self.nf(self.resolution_log2), num_channels, kernel_size=1, gain=1, use_wscale=use_wscale)
+        self.torgb = Conv2d(512, num_channels, kernel_size=1, gain=1, use_wscale=use_wscale)
 
         # Initial Input Block
         self.const_input = nn.Parameter(torch.ones(1, self.nf(1), 4, 4))
@@ -232,26 +223,6 @@ class G_synthesis(nn.Module):
         self.GBlock4 = GBlock(res, use_wscale, use_noise, use_pixel_norm, use_instance_norm,
                               self.noise_inputs)
 
-        # 64 x 64 -> 128 x 128
-        res = 7
-        self.GBlock5 = GBlock(res, use_wscale, use_noise, use_pixel_norm, use_instance_norm,
-                              self.noise_inputs)
-
-        # 128 x 128 -> 256 x 256
-        res = 8
-        self.GBlock6 = GBlock(res, use_wscale, use_noise, use_pixel_norm, use_instance_norm,
-                              self.noise_inputs)
-
-        # 256 x 256 -> 512 x 512
-        res = 9
-        self.GBlock7 = GBlock(res, use_wscale, use_noise, use_pixel_norm, use_instance_norm,
-                              self.noise_inputs)
-
-        # 512 x 512 -> 1024 x 1024
-        res = 10
-        self.GBlock8 = GBlock(res, use_wscale, use_noise, use_pixel_norm, use_instance_norm,
-                              self.noise_inputs)
-
     def forward(self, dlatent):
         """
            dlatent: Disentangled latents (W), shape为[minibatch, num_layers, dlatent_size].
@@ -264,6 +235,7 @@ class G_synthesis(nn.Module):
             # initial block 0:
             x = self.const_input.expand(dlatent.size(0), -1, -1, -1)
             x = x + self.bias.view(1, -1, 1, 1)
+            print(x.shape)
             x = self.adaIn1(x, self.noise_inputs[0], dlatent[:, 0])
             x = self.conv1(x)
             x = self.adaIn2(x, self.noise_inputs[1], dlatent[:, 1])
@@ -283,22 +255,7 @@ class G_synthesis(nn.Module):
             # block 4:
             # 32 x 32 -> 64 x 64
             x = self.GBlock4(x, dlatent)
-
-            # block 5:
-            # 64 x 64 -> 128 x 128
-            x = self.GBlock5(x, dlatent)
-
-            # block 6:
-            # 128 x 128 -> 256 x 256
-            x = self.GBlock6(x, dlatent)
-
-            # block 7:
-            # 256 x 256 -> 512 x 512
-            x = self.GBlock7(x, dlatent)
-
-            # block 8:
-            # 512 x 512 -> 1024 x 1024
-            x = self.GBlock8(x, dlatent)
+            print(x.shape)
 
             x = self.channel_shrinkage(x)
             images_out = self.torgb(x)
@@ -307,22 +264,32 @@ class G_synthesis(nn.Module):
 
 class StyleGenerator(nn.Module):
     def __init__(self,
-                 mapping_fmaps=512,
+                 mapping_fmaps = 512,               
                  style_mixing_prob=0.9,       # Probability of mixing styles during training. None = disable.
                  truncation_psi=0.7,          # Style strength multiplier for the truncation trick. None = disable.
                  truncation_cutoff=8,          # Number of layers for which to apply the truncation trick. None = disable.
                  **kwargs
                  ):
         super(StyleGenerator, self).__init__()
+        self.vgg = models.vgg16(pretrained=True).features
+        for para in self.vgg.parameters():
+            para.requires_grad = False 
         self.mapping_fmaps = mapping_fmaps
         self.style_mixing_prob = style_mixing_prob
         self.truncation_psi = truncation_psi
         self.truncation_cutoff = truncation_cutoff
-
+        self.input_trans = nn.Linear(1024, self.mapping_fmaps)
         self.mapping = G_mapping(self.mapping_fmaps, **kwargs)
         self.synthesis = G_synthesis(self.mapping_fmaps, **kwargs)
 
-    def forward(self, latents1):
+    def forward(self, image):
+        _ = self.vgg(image)
+        for i in range(0,17):
+            image = self.vgg[i](image)  # get pool4 size: 32*32  
+        shape = image.shape[0]
+        image = torch.max(image,1)[0] 
+        image = image.view([shape,-1])
+        latents1 = self.input_trans(image)
         dlatents1, num_layers = self.mapping(latents1)
         # let [N, O] -> [N, num_layers, O]
         # 这里的unsqueeze不能使用inplace操作, 如果这样的话, 反向传播的链条会断掉的.
@@ -353,15 +320,14 @@ class StyleGenerator(nn.Module):
             for i in range(num_layers):
                 if i < self.truncation_cutoff:
                     coefs[:, i, :] *= self.truncation_psi
-            """Linear interpolation.
-               a + (b - a) * t (a = 0)
-               reduce to
-               b * t
-            """
-
             dlatents1 = dlatents1 * torch.Tensor(coefs).to(dlatents1.device)
 
         img = self.synthesis(dlatents1)
         return img
+if __name__ == '__main__':
+    x = torch.randn(8,3,256,256)
+    G = StyleGenerator()
+    out = G(x)
+    print(out.shape)
 
 
