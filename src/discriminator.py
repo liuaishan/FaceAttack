@@ -34,12 +34,14 @@ class StyleDiscriminator(nn.Module):
         self.down1 = nn.Conv2d(512, 512, kernel_size=2, stride=2)
         self.down2 = nn.Conv2d(512, 512, kernel_size=2, stride=2)
         self.down3 = nn.Conv2d(512, 512, kernel_size=2, stride=2)
+        self.down4 = nn.Conv2d(512, 512, kernel_size=2, stride=2)
 
 
         # 卷积层定义
         self.conv1 = nn.Conv2d(512, 512, kernel_size=3, padding=(1, 1))
         self.conv2 = nn.Conv2d(512, 512, kernel_size=3, padding=(1, 1))
         self.conv3 = nn.Conv2d(512, 512, kernel_size=3, padding=(1, 1))
+        self.conv4 = nn.Conv2d(512, 512, kernel_size=3, padding=(1, 1))
 
         # 计算预测结果
         self.conv_last = nn.Conv2d(512, 512, kernel_size=3, padding=(1, 1))
@@ -49,15 +51,18 @@ class StyleDiscriminator(nn.Module):
 
     def forward(self, input):
         x = F.leaky_relu(self.fromrgb(input), 0.2, inplace=True)
-        #32 x 32 -> 16 x 16
+        # 5. 64 x 64 -> 32 x 32
         x = F.leaky_relu(self.conv1(x), 0.2, inplace=True)
         x = F.leaky_relu(self.down1(self.blur2d(x)), 0.2, inplace=True)
-        #16 x 16 -> 8 x 8
+        #32 x 32 -> 16 x 16
         x = F.leaky_relu(self.conv2(x), 0.2, inplace=True)
         x = F.leaky_relu(self.down2(self.blur2d(x)), 0.2, inplace=True)
-        #8 x 8 -> 4 x 4
+        #16 x 16 -> 8 x 8
         x = F.leaky_relu(self.conv3(x), 0.2, inplace=True)
         x = F.leaky_relu(self.down3(self.blur2d(x)), 0.2, inplace=True)
+        #8 x 8 -> 4 x 4
+        x = F.leaky_relu(self.conv4(x), 0.2, inplace=True)
+        x = F.leaky_relu(self.down4(self.blur2d(x)), 0.2, inplace=True)
         #4 x 4 -> point
         x = F.leaky_relu(self.conv_last(x), 0.2, inplace=True)
         # N x 8192
@@ -68,6 +73,6 @@ class StyleDiscriminator(nn.Module):
         return x
 if __name__ == '__main__':
     D = StyleDiscriminator()
-    x = torch.randn(8,3,32,32)
+    x = torch.randn(8,3,64,64)
     z = D(x)
     print(z)
