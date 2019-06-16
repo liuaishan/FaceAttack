@@ -121,14 +121,14 @@ class SEResNet_IR(nn.Module):
             unit_module = BottleNeck_IR
         elif mode == 'se_ir':
             unit_module = BottleNeck_IR_SE
-        self.input_layer = nn.Sequential(nn.Conv2d(3, 64, (3, 3), 1, 1, bias=False),
+        self.input_layer = nn.Sequential(nn.Conv2d(3, 64, (7, 7), stride = 2, padding = 3, bias=False),
                                          nn.BatchNorm2d(64),
                                          nn.PReLU(64))
 
         self.output_layer = nn.Sequential(nn.BatchNorm2d(512),
                                           nn.Dropout(drop_ratio),
                                           Flatten(),
-                                          nn.Linear(512 * 7 * 7, feature_dim),
+                                          nn.Linear(512 * 8 * 8, feature_dim),
                                           nn.BatchNorm1d(feature_dim))
         modules = []
         for block in blocks:

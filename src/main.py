@@ -277,7 +277,7 @@ def test_op(model, G, f=None):
 
 def choose_model():
     # switch models
-    print(args.model)
+    #print(args.model)
     #now the best score is achieved on SE_ResNet_IR 50, which was proposed in ArcFace.
     if args.model == 'se_resnet_50':
         sub_model = SEResNet_IR(50, mode='se_ir')
@@ -289,7 +289,7 @@ def choose_model():
 
 
 if __name__ == "__main__":
-
+    '''
     if os.path.exists(args.model_path) == False:
         os.makedirs(args.model_path)
 
@@ -309,4 +309,6 @@ if __name__ == "__main__":
         test_op(cnn)
     else:
         train_op(cnn)
+    '''
+    cnn = choose_model()
 
