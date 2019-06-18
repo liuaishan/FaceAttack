@@ -33,6 +33,12 @@ def extractDeepFeature(img, model, is_gray):
     out2 = model(img_)
     ft = torch.cat((out1, out2), 1)[0].to('cpu')
     return ft
+def extractDeepFeature_predict(img, model, is_gray=False):
+    img, img_ = img.unsqueeze(0).to('cuda'), img_.unsqueeze(0).to('cuda')
+    out1 = model(img)
+    out2 = model(img_)
+    ft = torch.cat((out1, out2), 1)[0].to('cpu')
+    return ft
 
 
 def KFold(n=6000, n_folds=10):
@@ -71,8 +77,16 @@ def find_best_threshold(thresholds, predicts):
             best_threshold = threshold
     return best_threshold
 
-def predict(model, target_face, train_face, model_path=None, is_gray=False):
-    return 0, 2.5
+def predict(model, target_face, train_face, best_threshold=0.3001, model_path=None):
+    f1 = extractDeepFeature_predict(target_face, model)
+    f2 = extractDeepFeature_predict(train_face, model)
+
+    distance = f1.dot(f2) / (f1.norm() * f2.norm() + 1e-5)
+    if(distance >= best_threshold):
+        same = 1
+    else:
+        same = 0
+    return same, distance
 
 def eval(model, model_path=None, is_gray=False):
     predicts = []
