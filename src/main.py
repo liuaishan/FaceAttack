@@ -94,7 +94,7 @@ def train_op(model, G, D):
     #To all the dataset, we do not distinguish the transform process so that we can make the train and test process unified
     # which includes resize, totensor and normalize(-1,1)
     transform = transforms.Compose([
-        transforms.Resize((224, 224)),
+        #transforms.Resize((224, 224)),
         transforms.ToTensor(),
         transforms.Normalize(mean=(0.5, 0.5, 0.5), std=(0.5, 0.5, 0.5))
     ])
