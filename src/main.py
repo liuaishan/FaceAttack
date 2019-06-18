@@ -10,6 +10,9 @@ from src.lfw_DataLoader import *
 from torch.optim.lr_scheduler import StepLR
 import os
 from src.myDataLoader import *
+from src.lfw_test import predict
+from src.generator import StyleGenerator
+from src.discriminator import StyleDiscriminator
 
 from src.utils import *
 import matplotlib as mpl
@@ -51,6 +54,7 @@ parser.add_argument('--dropout', type=get_bool, default=True, help='dropout')
 parser.add_argument('--target_dataset', default='lfw', help='face data set')
 parser.add_argument('--logfile', default='log.txt', help='log file to accord validation process')
 parser.add_argument('--loss_acc_path', default='./loss_acc/train_loss/', help='save train loss as .p to draw pic')
+parser.add_argument('--alpha', type=float, default=0.01, help='weight controls the attack loss')
 # parser.add_argument('--test_loss_acc_path',default='./loss_acc/train_acc/',help='save train acc as .p to draw pic')
 
 args = parser.parse_args()
@@ -178,14 +182,15 @@ def train_op(model, G, D):
                     adv_face = stick_patch_on_face(x_face, adv_patch)
 
                     # feed adv face to model
-                    adv_logits = model(adv_face)
+                    adv_feature = model(adv_face)
 
                     # attack loss
-                    target_face_label = Variable(torch.full(target_batchsize, target_label[0][0])).cuda()
-                    L_attack = CE_loss(adv_logits, target_face_label)
+                    #target_face_label = Variable(torch.full(target_batchsize, target_label[0][0])).cuda()
+                    #L_attack = CE_loss(adv_logits, target_face_label)
+                    _, L_attack = predict(model, target_face, x_face)
 
                     # overall loss
-                    L_G = L_g + L_attack
+                    L_G = L_g + args.alpha * L_attack
                     L_D = L_d
 
                     # optimization
@@ -205,7 +210,7 @@ def train_op(model, G, D):
                         model.zero_reg()
                     #f.write('[Epoch={}/{}]: step={}/{},'.format(epoch, args.epoch, step, len(train_loader)))
                     print('epoch={}/{}'.format(epoch, args.epoch))
-                    acc = test_op(model, output_file)
+                    acc = test_op(model,)
 
 
         # save model
@@ -287,6 +292,17 @@ def choose_model():
     sub_model.cuda()
     return sub_model
 
+def load_model(g_path, d_path):
+    G = StyleGenerator()
+    D = StyleDiscriminator()
+    if os.path.exists(g_path) == False:
+        return None,None
+    if os.path.exists(d_path) == False:
+        return None,None
+    G.load_state_dict(torch.load(g_path))
+    D.load_state_dict(torch.load(d_path))
+    return G.cuda(), D.cuda()
+
 
 if __name__ == "__main__":
     '''
@@ -311,4 +327,4 @@ if __name__ == "__main__":
         train_op(cnn)
     '''
     cnn = choose_model()
-
+    G, D = load_model()
