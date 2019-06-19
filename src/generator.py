@@ -7,6 +7,7 @@ from collections import OrderedDict
 from torch.nn.init import kaiming_normal_
 from StyleUtils import *
 import torchvision.models as models
+from discriminator import StyleDiscriminator
 device =  'cuda' if torch.cuda.is_available() else 'cpu'
 class LayerEpilogue(nn.Module):
     def __init__(self,
@@ -292,7 +293,7 @@ class StyleGenerator(nn.Module):
         latents1 = self.input_trans(image)
         dlatents1, num_layers = self.mapping(latents1)
         # let [N, O] -> [N, num_layers, O]
-        # 这里的unsqueeze不能使用inplace操作, 如果这样的话, 反向传播的链条会断掉的.
+        # 这里的unsqueeze不能使用inplace操作, 如果这样的话, 反向传播的链条会断掉
         dlatents1 = dlatents1.unsqueeze(1)
         dlatents1 = dlatents1.expand(-1, int(num_layers), -1)
 
@@ -325,9 +326,12 @@ class StyleGenerator(nn.Module):
         img = self.synthesis(dlatents1)
         return img
 if __name__ == '__main__':
-    x = torch.randn(8,3,256,256)
+    x = torch.randn(1,3,256,256)
     G = StyleGenerator()
     out = G(x)
     print(out.shape)
+    D = StyleDiscriminator()
+    z = D(out)
+    print(z)
 
 

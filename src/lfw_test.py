@@ -10,7 +10,7 @@ import torch.nn as nn
 from torchvision import models
 from collections import OrderedDict
 from collections import namedtuple
-from src.Model.SE_ResNet_IR import *
+from Model.SE_ResNet_IR import *
 device = torch.device("cuda")
 cudnn.benchmark = True
 
@@ -34,7 +34,7 @@ def extractDeepFeature(img, model, is_gray):
     ft = torch.cat((out1, out2), 1)[0].to('cpu')
     return ft
 def extractDeepFeature_predict(img, model, is_gray=False):
-    img, img_ = img.unsqueeze(0).to('cuda'), img_.unsqueeze(0).to('cuda')
+    img, img_ = img.to('cuda'), img.to('cuda')
     out1 = model(img)
     out2 = model(img_)
     ft = torch.cat((out1, out2), 1)[0].to('cpu')
@@ -78,10 +78,14 @@ def find_best_threshold(thresholds, predicts):
     return best_threshold
 
 def predict(model, target_face, train_face, best_threshold=0.3001, model_path=None):
+    print(target_face.size())
+    print(train_face.size())
     f1 = extractDeepFeature_predict(target_face, model)
     f2 = extractDeepFeature_predict(train_face, model)
-
+    print(f1.size())
+    print(f2.size())
     distance = f1.dot(f2) / (f1.norm() * f2.norm() + 1e-5)
+    print(distance)
     if(distance >= best_threshold):
         same = 1
     else:
@@ -90,7 +94,7 @@ def predict(model, target_face, train_face, best_threshold=0.3001, model_path=No
 
 def eval(model, model_path=None, is_gray=False):
     predicts = []
-    model.load_state_dict(torch.load(model_path))
+    #model.load_state_dict(torch.load(model_path))
     model.eval()
     root = '/media/dsg3/datasets/lfw/lfw_align/'
     with open('/media/dsg3/datasets/lfw/pairs.txt') as f:
@@ -138,7 +142,7 @@ def eval(model, model_path=None, is_gray=False):
         thd.append(best_thresh)
     print('LFWACC={:.4f} std={:.4f} thd={:.4f}'.format(np.mean(accuracy), np.std(accuracy), np.mean(thd)))
 
-    return np.mean(accuracy), predicts
+    return np.mean(thd)
 
 
 if __name__ == '__main__':
@@ -146,4 +150,4 @@ if __name__ == '__main__':
     #model_class = Resnet50FaceModel
     model=SEResNet_IR(50, mode='se_ir')
     #_, result = eval(model.to('cuda'), model_path='./model/params_res50IR_cos_CA.pkl')
-    _, result = eval(model.to('cuda'), model_path='/media/dsg3/xuyitao/Face/model/params_res50IR_cos_MS_224.pkl')
+    threshold = eval(model.to('cuda'), model_path='/media/dsg3/xuyitao/Face/model/params_res50IR_cos_MS_224.pkl')

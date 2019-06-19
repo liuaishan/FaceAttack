@@ -4,12 +4,12 @@ import cv2
 import torch
 import numpy as np
 import torchvision.transforms as transforms
+from PIL import Image
 def img_loader(path):
     try:
         with open(path, 'rb') as f:
-            img = cv2.imread(path)
-            if len(img.shape) == 2:
-                img = np.stack([img] * 3, 2)
+            #img = cv2.imread(path)
+            img = Image.open(path)
             return img
     except IOError:
         print('Cannot load image ' + path)

@@ -70,9 +70,10 @@ class StyleDiscriminator(nn.Module):
         x = F.leaky_relu(self.dense0(x), 0.2, inplace=True)
         # N x 1
         x = F.leaky_relu(self.dense1(x), 0.2, inplace=True)
+        x = torch.sigmoid(x)
         return x
 if __name__ == '__main__':
     D = StyleDiscriminator()
-    x = torch.randn(8,3,64,64)
+    x = torch.randn(1,3,64,64)
     z = D(x)
     print(z)
