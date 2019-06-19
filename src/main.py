@@ -9,17 +9,10 @@ from Model.SE_ResNet_IR import *
 from lfw_DataLoader import *
 from torch.optim.lr_scheduler import StepLR
 import os
-<<<<<<< HEAD
 from myDataLoader import *
 from lfw_test import *
 from generator import StyleGenerator
 from discriminator import StyleDiscriminator
-=======
-from src.myDataLoader import *
-from src.lfw_test import predict
-from src.generator import StyleGenerator
-from src.discriminator import StyleDiscriminator
->>>>>>> 6a2fba86a1c5ce39bbcccc55470b432876ed915f
 
 from utils import *
 import matplotlib as mpl
@@ -63,11 +56,8 @@ parser.add_argument('--target_dataset', default='lfw', help='face data set')
 parser.add_argument('--logfile', default='log.txt', help='log file to accord validation process')
 parser.add_argument('--loss_acc_path', default='./loss_acc/train_loss/', help='save train loss as .p to draw pic')
 parser.add_argument('--alpha', type=float, default=0.01, help='weight controls the attack loss')
-<<<<<<< HEAD
 parser.add_argument('--model_g_path',default='', help='save path of generator')
 parser.add_argument('--model_d_path',default='', help='save path of discriminator')
-=======
->>>>>>> 6a2fba86a1c5ce39bbcccc55470b432876ed915f
 # parser.add_argument('--test_loss_acc_path',default='./loss_acc/train_acc/',help='save train acc as .p to draw pic')
 
 args = parser.parse_args()
@@ -200,17 +190,10 @@ def train_op(model, G, D, nowbest_threshold):
                     # attack loss
                     #target_face_label = Variable(torch.full(target_batchsize, target_label[0][0])).cuda()
                     #L_attack = CE_loss(adv_logits, target_face_label)
-<<<<<<< HEAD
                     sameflag, L_attack = predict(model, target_face, x_face, best_threshold= nowbest_threshold)
 
                     # overall loss
                     L_G = L_g + args.alpha * (sameflag * L_attack + (1 - sameflag) * (1 - L_attack))
-=======
-                    _, L_attack = predict(model, target_face, x_face)
-
-                    # overall loss
-                    L_G = L_g + args.alpha * L_attack
->>>>>>> 6a2fba86a1c5ce39bbcccc55470b432876ed915f
                     L_D = L_d
 
                     # optimization
@@ -482,7 +465,6 @@ def choose_model():
     sub_model.cuda()
     return sub_model
 
-<<<<<<< HEAD
 def load_model(g_path=None, d_path=None):
     G = StyleGenerator()
     D = StyleDiscriminator()
@@ -495,18 +477,6 @@ def load_model(g_path=None, d_path=None):
     else:
         D.load_state_dict(torch.load(d_path))
     return G, D
-=======
-def load_model(g_path, d_path):
-    G = StyleGenerator()
-    D = StyleDiscriminator()
-    if os.path.exists(g_path) == False:
-        return None,None
-    if os.path.exists(d_path) == False:
-        return None,None
-    G.load_state_dict(torch.load(g_path))
-    D.load_state_dict(torch.load(d_path))
-    return G.cuda(), D.cuda()
->>>>>>> 6a2fba86a1c5ce39bbcccc55470b432876ed915f
 
 
 if __name__ == "__main__":
@@ -532,7 +502,6 @@ if __name__ == "__main__":
         train_op(cnn)
     '''
     cnn = choose_model()
-<<<<<<< HEAD
     #nowbest_threshold = eval(cnn, model_path='')
     nowbest_threshold=0.29
     print('Now the best threshold on lfw is: ',nowbest_threshold)
@@ -542,6 +511,3 @@ if __name__ == "__main__":
     else:
         train_op_onlfw(cnn, G, D, nowbest_threshold)
         print('train finished')
-=======
-    G, D = load_model()
->>>>>>> 6a2fba86a1c5ce39bbcccc55470b432876ed915f
