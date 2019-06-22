@@ -338,18 +338,21 @@ def train_op_onlfw(model, G, D, nowbest_threshold):
         scheduler_g.step()
         scheduler_d.step()
         for step_target, (target_face, targetlabel) in enumerate(target_face_loader):
-            target_face = target_face.repeat(args.face_batchsize,1,1,1)
+            target_face_multi = target_face.repeat(args.face_batchsize,1,1,1)
+            target_face = Variable(target_face).cuda()
+            target_face_multi = Variable(target_face_multi).cuda()
             for step_face, (trainface, trainlabel) in enumerate(face_train_loader):
                 for step_patch, (x_patch, _) in enumerate(patch_train_loader):
-                    x_patch = x_patch.repeat(args.face_batchsize,1,1,1)
+                    #x_patch_stick = x_patch.repeat(args.face_batchsize,1,1,1)
                     x_face = Variable(trainface).cuda()
                     x_patch = Variable(x_patch).cuda()
+                    #x_patch_stick = Variable(x_patch_stick).cuda()
                     # feed target face to G to generate adv_patch
                     target_face = Variable(target_face).cuda()
                     adv_patch = G(target_face)
                     # G loss
-                    real_label = Variable(torch.ones(args.face_batchsize)).cuda()
-                    fake_label = Variable(torch.zeros(args.face_batchsize)).cuda()
+                    real_label = Variable(torch.ones(args.patch_batchsize)).cuda()
+                    fake_label = Variable(torch.zeros(args.patch_batchsize)).cuda()
 
                     D_fake = D(adv_patch)
 
@@ -361,6 +364,7 @@ def train_op_onlfw(model, G, D, nowbest_threshold):
                     L_d = BCE_loss(D_real, real_label) + BCE_loss(D_fake, fake_label)
                     # stick adversarial patches on faces to generate adv face
                     #print('stick on')
+                    adv_patch = adv_patch.repeat(args.face_batchsize,1,1,1)
                     adv_face = stick_patch_on_face(x_face, adv_patch)
                     #print('stick finished')
                     # feed adv face to model
@@ -368,7 +372,7 @@ def train_op_onlfw(model, G, D, nowbest_threshold):
                     # attack loss
                     #target_face_label = Variable(torch.full(target_batchsize, target_label[0][0])).cuda()
                     #L_attack = CE_loss(adv_logits, target_face_label)
-                    L_attack = predict(model, target_face, adv_face, best_threshold= nowbest_threshold)
+                    L_attack = predict(model, target_face_multi, adv_face, best_threshold= nowbest_threshold)
 
                     L_attack = L_attack.cuda()
                     # overall loss
