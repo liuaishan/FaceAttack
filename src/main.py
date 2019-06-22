@@ -364,11 +364,11 @@ def train_op_onlfw(model, G, D, nowbest_threshold):
                     adv_face = stick_patch_on_face(x_face, adv_patch)
                     #print('stick finished')
                     # feed adv face to model
-                    adv_feature = model(adv_face)
+                    #adv_feature = model(adv_face)
                     # attack loss
                     #target_face_label = Variable(torch.full(target_batchsize, target_label[0][0])).cuda()
                     #L_attack = CE_loss(adv_logits, target_face_label)
-                    L_attack = predict(model, target_face, x_face, best_threshold= nowbest_threshold)
+                    L_attack = predict(model, target_face, adv_face, best_threshold= nowbest_threshold)
 
                     L_attack = L_attack.cuda()
                     # overall loss
@@ -403,7 +403,7 @@ def train_op_onlfw(model, G, D, nowbest_threshold):
                         output_file.write('now G loss: '+str(Loss_G)+'\n')
                         output_file.write('now D loss: '+str(Loss_D)+'\n')
                         #print('file write ok')# correct
-                    if(step_patch == 31):
+                    if(step_patch == 16):
                         break
 
                 # test acc for validation set
