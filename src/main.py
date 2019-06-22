@@ -295,7 +295,7 @@ def train_op_onlfw(model, G, D, nowbest_threshold):
     else:
         trainset, testset = load_file(args.train_face_label_path, args.train_dataset, test=True)
         face_target_dataset = Train_Dataset(args.target_face_path, trainset, transform = transform)
-        target_face_loader = DataLoader(dataset = face_target_dataset, batch_size = 1, shuffle = False, drop_last = False)
+        target_face_loader = DataLoader(dataset = face_target_dataset, batch_size = args.face_batchsize, shuffle = False, drop_last = False)
         print('Total length of target face set: ', target_face_loader.__len__())
     face_train_loader = DataLoader(dataset = face_train_dataset, batch_size = args.face_batchsize, shuffle = True, drop_last = False)
     print('load train set')
@@ -306,8 +306,9 @@ def train_op_onlfw(model, G, D, nowbest_threshold):
     '''
     patch, _ = read_p_data(args.train_patch_path)
     patch_dataset = Data.TensorDataset(patch, _)
-    patch_train_loader = Data.DataLoader(dataset=patch_dataset, batch_size=1, shuffle=False, drop_last=False)
+    patch_train_loader = Data.DataLoader(dataset=patch_dataset, batch_size=args.patch_batchsize, shuffle=True, drop_last=False)
     print('load patch set')
+    print('length of patch set:',patch_train_loader.__len__())
     # original code:
     '''
     target_face_data = torch.Tensor(target_face).view(-1,3,32,32)[:target_batchsize].cuda() / 255.
@@ -338,17 +339,17 @@ def train_op_onlfw(model, G, D, nowbest_threshold):
         scheduler_g.step()
         scheduler_d.step()
         for step_target, (target_face, targetlabel) in enumerate(target_face_loader):
-            target_face_multi = target_face.repeat(args.face_batchsize,1,1,1)
+            #target_face = target_face.repeat(args.face_batchsize,1,1,1)
             target_face = Variable(target_face).cuda()
-            target_face_multi = Variable(target_face_multi).cuda()
+            #target_face_multi = Variable(target_face_multi).cuda()
             for step_face, (trainface, trainlabel) in enumerate(face_train_loader):
                 x_face = Variable(trainface).cuda()
+                patch_train_loader = Data.DataLoader(dataset=patch_dataset, batch_size=args.patch_batchsize, shuffle=True, drop_last=False)
                 for step_patch, (x_patch, _) in enumerate(patch_train_loader):
-                    #x_patch_stick = x_patch.repeat(args.face_batchsize,1,1,1)
+                    #x_patch = x_patch.repeat(args.face_batchsize,1,1,1)
                     x_patch = Variable(x_patch).cuda()
                     #x_patch_stick = Variable(x_patch_stick).cuda()
                     # feed target face to G to generate adv_patch
-                    target_face = Variable(target_face).cuda()
                     adv_patch = G(target_face)
                     # G loss
                     real_label = Variable(torch.ones(args.patch_batchsize)).cuda()
@@ -364,7 +365,7 @@ def train_op_onlfw(model, G, D, nowbest_threshold):
                     L_d = BCE_loss(D_real, real_label) + BCE_loss(D_fake, fake_label)
                     # stick adversarial patches on faces to generate adv face
                     #print('stick on')
-                    adv_patch = adv_patch.repeat(args.face_batchsize,1,1,1)
+                    #adv_patch = adv_patch.repeat(args.face_batchsize,1,1,1)
                     adv_face = stick_patch_on_face(x_face, adv_patch)
                     #print('stick finished')
                     # feed adv face to model
@@ -372,7 +373,7 @@ def train_op_onlfw(model, G, D, nowbest_threshold):
                     # attack loss
                     #target_face_label = Variable(torch.full(target_batchsize, target_label[0][0])).cuda()
                     #L_attack = CE_loss(adv_logits, target_face_label)
-                    L_attack = predict(model, target_face_multi, adv_face, best_threshold= nowbest_threshold)
+                    L_attack = predict(model, target_face, adv_face, best_threshold = nowbest_threshold)
 
                     L_attack = L_attack.cuda()
                     # overall loss
@@ -394,7 +395,7 @@ def train_op_onlfw(model, G, D, nowbest_threshold):
                     L_D.backward(retain_graph=True)
                     optimizer_d.step()
                     #print('backward finished')
-                    if(step_patch % 16 == 0):
+                    if(step_patch % 8//args.patch_batchsize == 0):
                         print('now step in target face: ', step_target)
                         print('now step in train face: ', step_face)
                         Loss_G = '%.2f' % L_G.item()
@@ -407,7 +408,7 @@ def train_op_onlfw(model, G, D, nowbest_threshold):
                             output_file.write('now G loss: '+str(Loss_G)+'\n')
                             output_file.write('now D loss: '+str(Loss_D)+'\n')
                         #print('file write ok')# correct
-                    if(step_patch == 16):
+                    if(step_patch == 16//args.patch_batchsize):
                         break
 
                 # test acc for validation set
