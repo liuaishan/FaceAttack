@@ -84,6 +84,19 @@ def stick_patch_on_face(faceTensor, patchTensor):
     face_bsize = len(faceTensor)
     patch_bsize = len(patchTensor)
     
+    all_bsize = face_bsize * patch_bsize
+    combineTensor = torch.zeros((all_bsize, faceTensor.size()[1], faceTensor.size()[2], faceTensor.size()[3]))
+    k = 0
+    for i in range(face_bsize):
+        for j in range(patch_bsize):
+            faceTensor[i][:, x : x+faceTensor.size()[2], y + faceTensor.size()[3]] = patchTensor[j][:, :, :] 
+            combineTensor[k] = faceTensor[i]
+    
+    return combineTensor
+    
+    
+    
+    '''
     #get size of patch data
     size1 = len(patchTensor[0][0])
     size2 = len(patchTensor[0][0][0])
@@ -106,3 +119,5 @@ def stick_patch_on_face(faceTensor, patchTensor):
                 combineTensor = torch.cat([combineTensor,new],0)
                 
     return combineTensor
+    '''
+    
