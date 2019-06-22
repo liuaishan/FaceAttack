@@ -70,7 +70,7 @@ target_batchsize = args.face_batchsize * args.patch_batchsize
 def train_op(model, G, D, nowbest_threshold):
 
     model.eval()
-    output_file = open(args.logfile, 'w')
+    #output_file = open(args.logfile, 'w')
     # load training data and test set
     #face_train, face_train_label, _ = read_data(args.train_face_path)
     #patch_train, _ = read_data_no_label(args.train_patch_path)
@@ -342,9 +342,9 @@ def train_op_onlfw(model, G, D, nowbest_threshold):
             target_face = Variable(target_face).cuda()
             target_face_multi = Variable(target_face_multi).cuda()
             for step_face, (trainface, trainlabel) in enumerate(face_train_loader):
+                x_face = Variable(trainface).cuda()
                 for step_patch, (x_patch, _) in enumerate(patch_train_loader):
                     #x_patch_stick = x_patch.repeat(args.face_batchsize,1,1,1)
-                    x_face = Variable(trainface).cuda()
                     x_patch = Variable(x_patch).cuda()
                     #x_patch_stick = Variable(x_patch_stick).cuda()
                     # feed target face to G to generate adv_patch
@@ -401,11 +401,11 @@ def train_op_onlfw(model, G, D, nowbest_threshold):
                         Loss_D = '%.2f' % L_D.item()
                         print('now G loss: ',Loss_G)
                         print('now D loss: ',Loss_D)
-                        
-                        output_file.write('now step in target face '+str(step_target)+'\n')
-                        output_file.write('now step in train face '+str(step_face)+'\n')
-                        output_file.write('now G loss: '+str(Loss_G)+'\n')
-                        output_file.write('now D loss: '+str(Loss_D)+'\n')
+                        with open(args.logfile,'a') as output_file:
+                            output_file.write('now step in target face '+str(step_target)+'\n')
+                            output_file.write('now step in train face '+str(step_face)+'\n')
+                            output_file.write('now G loss: '+str(Loss_G)+'\n')
+                            output_file.write('now D loss: '+str(Loss_D)+'\n')
                         #print('file write ok')# correct
                     if(step_patch == 16):
                         break
@@ -435,7 +435,7 @@ def train_op_onlfw(model, G, D, nowbest_threshold):
 
     # end for epoch
 
-    output_file.close()
+    #output_file.close()
 
 def test_op(model, G, f=None):
     '''
