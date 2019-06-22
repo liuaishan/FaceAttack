@@ -91,6 +91,7 @@ def stick_patch_on_face(faceTensor, patchTensor):
         for j in range(patch_bsize):
             faceTensor[i][:, x : x+faceTensor.size()[2], y + faceTensor.size()[3]] = patchTensor[j][:, :, :] 
             combineTensor[k] = faceTensor[i]
+            k = k + 1
     
     return combineTensor
     
