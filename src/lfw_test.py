@@ -11,6 +11,9 @@ from torchvision import models
 from collections import OrderedDict
 from collections import namedtuple
 from Model.SE_ResNet_IR import *
+from utils import stick_patch_on_face,read_p_data
+import torch.utils.data as Data
+from generator import *
 device = torch.device("cuda")
 cudnn.benchmark = True
 
@@ -27,18 +30,41 @@ def extractDeepFeature(img, model, is_gray):
             transforms.ToTensor(),  # range [0, 255] -> [0.0,1.0]
             transforms.Normalize(mean=(0.5, 0.5, 0.5), std=(0.5, 0.5, 0.5))
         ])
-    img, img_ = transform(img), transform(F.hflip(img))
+    img, img_ = transform(img), transform(img)
     img, img_ = img.unsqueeze(0).to('cuda'), img_.unsqueeze(0).to('cuda')
     out1 = model(img)
     out2 = model(img_)
     ft = torch.cat((out1, out2), 1)[0].to('cpu')
     return ft
-def extractDeepFeature_predict(img, model, is_gray=False):
-    img, img_ = img.to('cuda'), img.to('cuda')
+def extractDeepFeature_patch(G,patch, img, model, is_gray):
+    if is_gray:
+        transform = transforms.Compose([
+            transforms.Grayscale(),
+            transforms.ToTensor(),  # range [0, 255] -> [0.0,1.0]
+            transforms.Normalize(mean=(0.5,), std=(0.5,))  # range [0.0, 1.0] -> [-1.0,1.0]
+        ])
+    else:
+        transform = transforms.Compose([
+            #transforms.Resize((112,112)),
+            transforms.ToTensor(),  # range [0, 255] -> [0.0,1.0]
+            transforms.Normalize(mean=(0.5, 0.5, 0.5), std=(0.5, 0.5, 0.5))
+        ])
+    img, img_ = transform(img), transform(img)
+    img, img_ = img.unsqueeze(0).to('cuda'), img_.unsqueeze(0).to('cuda')
+    patch = G(img).to('cuda')
+
+    img = stick_patch_on_face(img, patch)
+    img_ = stick_patch_on_face(img_,patch)
     out1 = model(img)
     out2 = model(img_)
     ft = torch.cat((out1, out2), 1)[0].to('cpu')
     return ft
+def extractDeepFeature_predict(img, model, is_gray=False):
+    img = img.to('cuda')#, img.to('cuda')
+    out1 = model(img)
+    #out2 = model(img_)
+    #ft = torch.cat((out1, out2), 1)[0]
+    return out1.cpu()
 
 
 def KFold(n=6000, n_folds=10):
@@ -78,19 +104,20 @@ def find_best_threshold(thresholds, predicts):
     return best_threshold
 
 def predict(model, target_face, train_face, best_threshold=0.3001, model_path=None):
-    print(target_face.size())
-    print(train_face.size())
+    #print(target_face.size())
+    #print(train_face.size())
     f1 = extractDeepFeature_predict(target_face, model)
     f2 = extractDeepFeature_predict(train_face, model)
-    print(f1.size())
-    print(f2.size())
-    distance = f1.dot(f2) / (f1.norm() * f2.norm() + 1e-5)
-    print(distance)
-    if(distance >= best_threshold):
-        same = 1
-    else:
-        same = 0
-    return same, distance
+    #print(f1.size())#[1024]
+    #print(f2.size())
+    for i in range(f1.size()[0]):
+        if(i==0):
+            distance = f1[i].dot(f2[i]) / (f1[i].norm() * f2[i].norm() + 1e-5)
+        else:
+            distance += f1[i].dot(f2[i]) / (f1[i].norm() * f2[i].norm() + 1e-5)
+    #print(distance.size())
+    distance = distance/f1.size()[0]
+    return distance
 
 def eval(model, model_path=None, is_gray=False):
     predicts = []
@@ -99,7 +126,18 @@ def eval(model, model_path=None, is_gray=False):
     root = '/media/dsg3/datasets/lfw/lfw_align/'
     with open('/media/dsg3/datasets/lfw/pairs.txt') as f:
         pairs_lines = f.readlines()[1:]
-
+    patch, _ = read_p_data('../dataset/doodle.p')
+    patch_dataset = Data.TensorDataset(patch, _)
+    patch_train_loader = Data.DataLoader(dataset=patch_dataset, batch_size=1, shuffle=False, drop_last=False)
+    print('length of patch: ',patch_train_loader.__len__())
+    G = StyleGenerator()
+    G.load_state_dict(torch.load('/media/dsg3/FaceAttack/faceAttack_G.pkl'))
+    G = G.cuda()
+    tot = 10
+    for i,(xx,_) in enumerate(patch_train_loader):
+        if(i==tot):
+            patch = xx
+            break
     with torch.no_grad():
         for i in range(6000):
             p = pairs_lines[i].replace('\n', '').split('\t')
@@ -121,7 +159,7 @@ def eval(model, model_path=None, is_gray=False):
             with open(root + name2, 'rb') as f:
                 img2 =  Image.open(f).convert('RGB')
             f1 = extractDeepFeature(img1, model, is_gray)
-            f2 = extractDeepFeature(img2, model, is_gray)
+            f2 = extractDeepFeature_patch(G,patch, img2, model, is_gray)
 
             distance = f1.dot(f2) / (f1.norm() * f2.norm() + 1e-5)
             predicts.append('{}\t{}\t{}\t{}\n'.format(name1, name2, distance, sameflag))
@@ -149,5 +187,5 @@ if __name__ == '__main__':
     #model=SEResNet_IR(50, mode='se_ir')
     #model_class = Resnet50FaceModel
     model=SEResNet_IR(50, mode='se_ir')
-    #_, result = eval(model.to('cuda'), model_path='./model/params_res50IR_cos_CA.pkl')
-    threshold = eval(model.to('cuda'), model_path='/media/dsg3/xuyitao/Face/model/params_res50IR_cos_MS_224.pkl')
+    result = eval(model.to('cuda'), model_path='/media/dsg3/xuyitao/Face/model/params_res50IR_cos_CA.pkl')
+    #threshold = eval(model.to('cuda'), model_path='/media/dsg3/xuyitao/Face/model/params_res50IR_cos_MS_224.pkl')

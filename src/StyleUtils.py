@@ -196,6 +196,6 @@ class InstanceNorm(nn.Module):
     def forward(self, x):
         x   = x - torch.mean(torch.mean(x, 2, True),3,True)
         tmp = torch.mul(x, x) # or x ** 2
-        print('tmp',x)
+        #print('tmp',x)
         tmp = torch.rsqrt(torch.mean(torch.mean(tmp, 2, True),3,True) + self.epsilon)
         return x * tmp

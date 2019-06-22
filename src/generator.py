@@ -45,7 +45,7 @@ class LayerEpilogue(nn.Module):
         if self.pixel_norm is not None:
             x = self.pixel_norm(x)
         if self.instance_norm is not None:
-            print(x.shape)
+            #print(x.shape)
             x = self.instance_norm(x)
         if self.style_mod is not None:
             x = self.style_mod(x, dlatents_in_slice)
@@ -236,7 +236,7 @@ class G_synthesis(nn.Module):
             # initial block 0:
             x = self.const_input.expand(dlatent.size(0), -1, -1, -1)
             x = x + self.bias.view(1, -1, 1, 1)
-            print(x.shape)
+            #print(x.shape)
             x = self.adaIn1(x, self.noise_inputs[0], dlatent[:, 0])
             x = self.conv1(x)
             x = self.adaIn2(x, self.noise_inputs[1], dlatent[:, 1])
@@ -256,7 +256,7 @@ class G_synthesis(nn.Module):
             # block 4:
             # 32 x 32 -> 64 x 64
             x = self.GBlock4(x, dlatent)
-            print(x.shape)
+            #print(x.shape)
 
             x = self.channel_shrinkage(x)
             images_out = self.torgb(x)

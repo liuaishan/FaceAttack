@@ -165,9 +165,9 @@ def load_file(file_root, dataset, test=False):
         return trainset, testset
     if dataset == 'CASIA':
         if(test):
-            datafile = file_root + 'CASIA_test.txt'
+            datafile = file_root + 'CASIA_small_target.txt'
         else:
-            datafile = file_root + 'CASIA_list.txt'
+            datafile = file_root + 'CASIA_small_train.txt'
         failfile = file_root + 'CASIA_fail.txt'
         trainset = []
         testset = []
@@ -187,10 +187,7 @@ def load_file(file_root, dataset, test=False):
                 if (words[0] == fail[k]):
                     k += 1
                     continue
-            if (m % 100 == 4):
-                testset.append((words[0], int(words[1])))
-            else:
-                trainset.append((words[0], int(words[1])))
+            trainset.append((words[0], int(words[1])))
             m = m + 1
         return trainset, testset
     if dataset == 'MS1M':
