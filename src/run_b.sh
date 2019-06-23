@@ -1,0 +1,25 @@
+python main.py \
+  --face_batchsize 8 \
+  --patch_batchsize 8 \
+  --epoch 10000 \
+  --lr 0.001 \
+  --test_flag 'False' \
+  --test_dataset 'lfw' \
+  --test_data_path '' \
+  --test_label_path '' \
+  --target_face_path '/userhome/dataset/CASIA_align/' \
+  --target_label_path '/media/dsg3/datasets/lfw/pairs.txt' \
+  --train_face_path '/userhome/dataset/CASIA_align/' \
+  --train_dataset 'CASIA' \
+  --train_face_label_path '/userhome/code/FaceAttack/dataset/' \
+  --train_patch_path '/userhome/code/FaceAttack/dataset/doodle_small.p' \
+  --model 'se_resnet_50' \
+  --model_path './params_res50IR_cos_CA.pkl' \
+  --batchnorm 'True' \
+  --dropout 'True' \
+  --target_dataset 'CASIA' \
+  --logfile 'log_8.txt' \
+  --loss_acc_path 'train_loss.txt' \
+  --alpha 1 \
+  --model_g_path '../' \
+  --model_d_path '../'

@@ -239,7 +239,7 @@ def train_op_onlfw(model, G, D, nowbest_threshold):
     elif torch.cuda.device_count() == 1:
         print("1 Gpu")
     model.eval()
-    output_file = open(args.logfile, 'w')
+    #output_file = open(args.logfile, 'w')
     # load training data and test set
     #face_train, face_train_label, _ = read_data(args.train_face_path)
     #patch_train, _ = read_data_no_label(args.train_patch_path)
@@ -339,14 +339,14 @@ def train_op_onlfw(model, G, D, nowbest_threshold):
         scheduler_g.step()
         scheduler_d.step()
         for step_target, (target_face, targetlabel) in enumerate(target_face_loader):
-            #target_face = target_face.repeat(args.face_batchsize,1,1,1)
+            #target_face = target_face.repeat(args.face_batchsize,1,1,1)#stick patch to one face, or to different face but same identity
             target_face = Variable(target_face).cuda()
             #target_face_multi = Variable(target_face_multi).cuda()
             for step_face, (trainface, trainlabel) in enumerate(face_train_loader):
                 x_face = Variable(trainface).cuda()
                 patch_train_loader = Data.DataLoader(dataset=patch_dataset, batch_size=args.patch_batchsize, shuffle=True, drop_last=False)
                 for step_patch, (x_patch, _) in enumerate(patch_train_loader):
-                    #x_patch = x_patch.repeat(args.face_batchsize,1,1,1)
+                    #x_patch = x_patch.repeat(args.face_batchsize,1,1,1)#stick patch to one face, or to different face but same identity
                     x_patch = Variable(x_patch).cuda()
                     #x_patch_stick = Variable(x_patch_stick).cuda()
                     # feed target face to G to generate adv_patch
@@ -363,6 +363,7 @@ def train_op_onlfw(model, G, D, nowbest_threshold):
                     D_real = D(x_patch)
                     D_real = D_real.squeeze(1)
                     L_d = BCE_loss(D_real, real_label) + BCE_loss(D_fake, fake_label)
+                    #print(D_real, D_fake)
                     # stick adversarial patches on faces to generate adv face
                     #print('stick on')
                     #adv_patch = adv_patch.repeat(args.face_batchsize,1,1,1)
@@ -395,7 +396,7 @@ def train_op_onlfw(model, G, D, nowbest_threshold):
                     L_D.backward(retain_graph=True)
                     optimizer_d.step()
                     #print('backward finished')
-                    if(step_patch % 8//args.patch_batchsize == 0):
+                    if(step_patch % 2 == 0):
                         print('now step in target face: ', step_target)
                         print('now step in train face: ', step_face)
                         Loss_G = '%.2f' % L_G.item()
@@ -408,7 +409,7 @@ def train_op_onlfw(model, G, D, nowbest_threshold):
                             output_file.write('now G loss: '+str(Loss_G)+'\n')
                             output_file.write('now D loss: '+str(Loss_D)+'\n')
                         #print('file write ok')# correct
-                    if(step_patch == 16//args.patch_batchsize):
+                    if(step_patch == (32//args.patch_batchsize)-1):
                         break
 
                 # test acc for validation set
@@ -511,13 +512,19 @@ def load_model(g_path=None, d_path=None):
     if os.path.exists(g_path) == False:
         print('Load Generator failed')
     else:
-        print('Successfully load G')
-        G.load_state_dict(torch.load(g_path))
+        try:
+          #G.load_state_dict(torch.load(g_path))
+          print('Successfully load G')
+        except:
+          print('Load Generator failed')
     if os.path.exists(d_path) == False:
         print('Load Discriminator failed')
     else:
-        print('Successfully load D')
-        D.load_state_dict(torch.load(d_path))
+        try:
+          #D.load_state_dict(torch.load(d_path))
+          print('Successfully load D')
+        except:
+          print('Load Discriminator failed')
     return G, D
 
 
