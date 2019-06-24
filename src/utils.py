@@ -77,8 +77,8 @@ def read_p_data(data_path):
 def stick_patch_on_face_old(faceTensor, patchTensor):
    
     # position of patch
-    x=100
-    y=150
+    x=140
+    y=160
     
     # get batch size of face dataset and patch dataset
     face_bsize = len(faceTensor)
@@ -109,8 +109,8 @@ def stick_patch_on_face_old(faceTensor, patchTensor):
 def stick_patch_on_face(faceTensor, patchTensor):
    
     # position of patch
-    x=100
-    y=150
+    x=140
+    y=160
     
     # get batch size of face dataset and patch dataset
     face_bsize = len(faceTensor)

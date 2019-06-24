@@ -1,6 +1,6 @@
 python main.py \
-  --face_batchsize 8 \
-  --patch_batchsize 8 \
+  --face_batchsize 1 \
+  --patch_batchsize 1 \
   --epoch 10000 \
   --lr 0.001 \
   --test_flag 'False' \
@@ -18,8 +18,9 @@ python main.py \
   --batchnorm 'True' \
   --dropout 'True' \
   --target_dataset 'CASIA' \
-  --logfile 'log_8.txt' \
+  --logfile 'log_16.txt' \
   --loss_acc_path 'train_loss.txt' \
   --alpha 1 \
   --model_g_path '../' \
-  --model_d_path '../'
+  --model_d_path '../' \
+  --enable_new_loss 'True'

@@ -127,6 +127,14 @@ class Train_Dataset(torch.utils.data.Dataset):
 
     def __len__(self):
         return len(self.imgs)
+def load_patch_file(root):
+    trainset = []
+    fh = open(root+'patch.txt', 'r')
+    for line in fh:
+        line = line.rstrip()
+        words = line.split()
+        trainset.append((words[0], int(words[1]) - 1))
+    return trainset
 def load_file(file_root, dataset, test=False):
     if dataset == 'CelebA':
         if(test):
@@ -209,6 +217,7 @@ def load_file(file_root, dataset, test=False):
         return trainset, testset
 #test trainset building
 if __name__ == '__main__':
+    '''
     train_face_path='../dataset/'
     train_dataset='CASIA'
     transform = transforms.Compose([
@@ -229,3 +238,22 @@ if __name__ == '__main__':
         print('----------')
         if(tot==1):
             break
+    '''
+    transform = transforms.Compose([
+        transforms.ToTensor(),
+        transforms.Normalize(mean=(0.5, 0.5, 0.5), std=(0.5, 0.5, 0.5))
+    ])
+    import numpy as np
+    set = load_patch_file('../')
+    dataset = Train_Dataset('/userhome/dataset/patch/', set, transform=transform)
+    train_loader = DataLoader(dataset, batch_size=1, shuffle=False, drop_last=False)
+    for i, (images, labels) in enumerate(train_loader):
+        print(images.size())
+        print(labels.size())
+        images = np.array(images.squeeze(0))
+        images  = images  .transpose(1, 2, 0)
+        images  = images  * 255
+        img = Image.fromarray(images.astype('uint8'))
+        img.show()
+        print('----------')
+        break
