@@ -80,13 +80,13 @@ def test_op(G, model, target_face_id, train_face_id, patch_num):
     print('length of face target loader',target_face_loader.__len__())
     #randomly find target face to generate patch
     for i,(face, label) in enumerate(target_face_loader):
-        if(i==50):
+        if(i==target_face_id):
             nowface = Variable(face).cuda()
             break
     nowpatch = G(nowface)
     #randomly find the face to be tested
     for i,(face, label) in enumerate(face_test_loader):
-        if(i==150):
+        if(i==train_face_id):
             testface = Variable(face).cuda()
             break
     
