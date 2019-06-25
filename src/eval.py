@@ -46,7 +46,7 @@ def getmin(num_list,topk=3):
     tmp_list.sort()
     min_num_index=[num_list.index(one) for one in tmp_list[:topk]]
     return min_num_index
-def test_op(G, model):
+def test_op(G, model, target_face_id, train_face_id, patch_num):
     G = load_model(args.model_g_path+'faceAttack_G.pkl')
     G = G.cuda()
     G.eval()
@@ -65,34 +65,44 @@ def test_op(G, model):
     ])
     with open('../dataset/doodle_small.p','rb') as f:
         patchset=pickle.load(f)
-    patch_ori = patchset[0]
+    #randomly find original patch
+    patch_ori = patchset[patch_num]
     patch_ori = (patch_ori-0.5) / 0.5
+    #512 train
     trainset, testset = load_file(args.test_label_path, args.test_dataset)
     face_test_dataset = Train_Dataset(args.test_face_path, trainset, transform = transform)
     face_test_loader = DataLoader(dataset = face_test_dataset, batch_size = 1, shuffle = False, drop_last = False)
     print('length of face test loader',face_test_loader.__len__())
-    for i,(face, label) in enumerate(face_test_loader):
-        if(i==0):
-            face = Variable(face).cuda()
-    nowface = face
+    #96 target
     trainset, testset = load_file(args.target_label_path, args.test_dataset, test=True)
     face_target_dataset = Train_Dataset(args.target_face_path, trainset, transform = transform)
     target_face_loader = DataLoader(dataset = face_target_dataset, batch_size = 1, shuffle = False, drop_last = False)
     print('length of face target loader',target_face_loader.__len__())
+    #randomly find target face to generate patch
+    for i,(face, label) in enumerate(target_face_loader):
+        if(i==50):
+            nowface = Variable(face).cuda()
+            break
+    nowpatch = G(nowface)
+    #randomly find the face to be tested
+    for i,(face, label) in enumerate(face_test_loader):
+        if(i==150):
+            testface = Variable(face).cuda()
+            break
+    
     mindis = []
     for i,(face, label) in enumerate(face_test_loader):
         face = Variable(face).cuda()
-        distance = predict(model, nowface,face)
+        distance = predict(model, testface,face)
         mindis.append(distance)
     for i,(face, label) in enumerate(target_face_loader):
         face = Variable(face).cuda()
-        if(i==50):
-            nowpatch = G(face)
-        distance = predict(model, nowface,face)
+        distance = predict(model, testface,face)
         mindis.append(distance)
     minlist = getmin(mindis, topk=10)
     print('original pic',minlist)
-    face_oripatch = stick_patch_on_face(nowface, patch_ori)
+
+    face_oripatch = stick_patch_on_face(testface, patch_ori)
     mindis = []
     for i,(face, label) in enumerate(face_test_loader):
         face = Variable(face).cuda()
@@ -100,13 +110,12 @@ def test_op(G, model):
         mindis.append(distance)
     for i,(face, label) in enumerate(target_face_loader):
         face = Variable(face).cuda()
-        if(i==50):
-            nowpatch = G(face)
-        distance = predict(model, face_oripatch,face)
+        distance = predict(model, face_oripatch, face)
         mindis.append(distance)
     minlist = getmin(mindis, topk=10)
     print('with original patch',minlist)
-    adv_face = stick_patch_on_face(nowface, nowpatch)
+
+    adv_face = stick_patch_on_face(testface, nowpatch)
     mindis = []
     for i,(face, label) in enumerate(face_test_loader):
         face = Variable(face).cuda()
@@ -114,12 +123,11 @@ def test_op(G, model):
         mindis.append(distance)
     for i,(face, label) in enumerate(target_face_loader):
         face = Variable(face).cuda()
-        if(i==50):
-            nowpatch = G(face)
         distance = predict(model, adv_face,face)
         mindis.append(distance)
     minlist = getmin(mindis, topk=10)
     print('with adv patch',minlist)
+
 def choose_model():
     if args.model == 'se_resnet_50':
         sub_model = SEResNet_IR(50, mode='se_ir')
@@ -129,17 +137,7 @@ def choose_model():
     sub_model.cuda()
     return sub_model
 
-def load_model(g_path=None, d_path=None):
-    G = StyleGenerator()
-    if os.path.exists(g_path) == False:
-        print('Load Generator failed')
-    else:
-        print('Successfully load G')
-        G.load_state_dict(torch.load(g_path))
-    return G
-
-
 if __name__ == "__main__":
     cnn = choose_model()
-    
+    G = StyleGenerator()
     test_op(G,cnn)
