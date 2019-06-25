@@ -101,10 +101,12 @@ def test_op(G, model, target_face_id, train_face_id, patch_num):
         face = Variable(face).cuda()
         distance = predict(model, testface,face)
         mindis.append(distance.item())
+        print(distance)
     minlist = getmax(mindis, topk=10)
     print('original pic',minlist)
+    patch_ori1 = patch_ori.unsqueeze(0)
 
-    face_oripatch = stick_patch_on_face(testface, patch_ori)
+    face_oripatch = stick_patch_on_face(testface, patch_ori1).cuda()
     mindis = []
     '''
     for i,(face, label) in enumerate(face_test_loader):
@@ -116,10 +118,11 @@ def test_op(G, model, target_face_id, train_face_id, patch_num):
         face = Variable(face).cuda()
         distance = predict(model, face_oripatch, face)
         mindis.append(distance.item())
+        print(distance)
     minlist = getmax(mindis, topk=10)
     print('with original patch',minlist)
 
-    adv_face = stick_patch_on_face(testface, nowpatch)
+    adv_face = stick_patch_on_face(testface, nowpatch).cuda()
     mindis = []
     '''
     for i,(face, label) in enumerate(face_test_loader):
@@ -131,6 +134,7 @@ def test_op(G, model, target_face_id, train_face_id, patch_num):
         face = Variable(face).cuda()
         distance = predict(model, adv_face,face)
         mindis.append(distance.item())
+        print(distance)
     minlist = getmax(mindis, topk=10)
     print('with adv patch',minlist)
 

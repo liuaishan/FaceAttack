@@ -60,7 +60,7 @@ def extractDeepFeature_patch(G,patch, img, model, is_gray):
     ft = torch.cat((out1, out2), 1)[0].to('cpu')
     return ft
 def extractDeepFeature_predict(img, model, is_gray=False):
-    img = img.to('cuda')#, img.to('cuda')
+    #img = img.to('cuda')#, img.to('cuda')
     out1 = model(img)
     #out2 = model(img_)
     #ft = torch.cat((out1, out2), 1)[0]
