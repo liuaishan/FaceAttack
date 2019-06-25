@@ -272,7 +272,8 @@ class StyleGenerator(nn.Module):
                  **kwargs
                  ):
         super(StyleGenerator, self).__init__()
-        self.vgg = models.vgg16(pretrained=True).features
+        self.vgg_all = models.vgg16(pretrained=False)
+        self.vgg=self.vgg_all.features
         for para in self.vgg.parameters():
             para.requires_grad = False 
         self.mapping_fmaps = mapping_fmaps
