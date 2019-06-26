@@ -1,6 +1,6 @@
 python main.py \
-  --face_batchsize 1 \
-  --patch_batchsize 1 \
+  --face_batchsize 16 \
+  --patch_batchsize 16 \
   --epoch 10000 \
   --lr 0.001 \
   --test_flag 'False' \
@@ -23,4 +23,6 @@ python main.py \
   --alpha 1 \
   --model_g_path '../' \
   --model_d_path '../' \
-  --enable_new_loss 'True'
+  --enable_new_loss 'True' \
+  --patch_root '/userhome/dataset/patch/' \
+  --patch_list '/userhome/code/FaceAttack/dataset/'

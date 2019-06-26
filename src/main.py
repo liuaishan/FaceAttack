@@ -16,11 +16,11 @@ from discriminator import StyleDiscriminator,StyleDiscriminator_newloss
 #os.environ["CUDA_VISIBLE_DEVICES"] = "0,1,6,7"
 from utils import *
 import matplotlib as mpl
-
-#mpl.use('Agg')
+from loss import *
+mpl.use('Agg')
 import matplotlib.pyplot as plt
 
-#plt.style.use('bmh')
+plt.style.use('bmh')
 
 from torch.autograd import Variable
 
@@ -59,8 +59,8 @@ parser.add_argument('--alpha', type=float, default=0.01, help='weight controls t
 parser.add_argument('--model_g_path',default='', help='save path of generator')
 parser.add_argument('--model_d_path',default='', help='save path of discriminator')
 parser.add_argument('--enable_new_loss',type=get_bool, default = False, help='whether enable tranditional GAN loss')
-parser.add_argument('--patch_root',default='', help='patch file root')
-parser.add_argument('--patch_list',default='', help='patch list')
+parser.add_argument('--patch_root',default='', help='save path of discriminator')
+parser.add_argument('--patch_list',default='', help='save path of discriminator')
 # parser.add_argument('--test_loss_acc_path',default='./loss_acc/train_acc/',help='save train acc as .p to draw pic')
 
 args = parser.parse_args()
@@ -362,16 +362,16 @@ def train_op_onlfw(model, G, D, nowbest_threshold):
                     real_label = Variable(torch.ones(args.patch_batchsize)).cuda()
                     fake_label = Variable(torch.zeros(args.patch_batchsize)).cuda()
 
-                    D_fake = D(adv_patch)
+                    D_fake = D(adv_patch.detach())
                     #L_d = softplus(D_fake).mean()
                     D_fake = D_fake.squeeze(1)
-                    L_g = BCE_loss(D_fake, real_label)#
+                    
                     #L_g = softplus(-D_fake).mean()
                     # D loss
                     D_real = D(x_patch)
                     D_real = D_real.squeeze(1)
                     #L_d = L_d + softplus(-D_real).mean()
-                    L_d = BCE_loss(D_real, real_label) + BCE_loss(D_fake, fake_label)
+                    L_d = BCE_loss(D_real, real_label) + BCE_loss(D_fake, fake_label)+gradient_penalty(x_patch.data, adv_patch.data, D) * 5.0
                     #print(D_real, D_fake)
                     # stick adversarial patches on faces to generate adv face
                     #print('stick on')
@@ -383,15 +383,19 @@ def train_op_onlfw(model, G, D, nowbest_threshold):
                     # attack loss
                     #target_face_label = Variable(torch.full(target_batchsize, target_label[0][0])).cuda()
                     #L_attack = CE_loss(adv_logits, target_face_label)
+                    D_fake = D(adv_patch)
+                    D_fake = D_fake.squeeze(1)
+                    L_g = BCE_loss(D_fake, real_label)#
                     L_attack = predict(model, target_face, adv_face, best_threshold = nowbest_threshold)
-
+                    L_same = predict(model, x_face, adv_face, best_threshold = nowbest_threshold)
                     L_attack = L_attack.cuda()
+                    L_same = L_same.cuda()
                     # overall loss
                     #max_dis = torch.Tensor([1])
                     #max_dis = max_dis.squeeze(0).cuda()
                     #L_G_part = 
                     #print('L G part')
-                    L_G = L_g + args.alpha * (1 - L_attack) #problem, solved by updating pytorch, still do not know why
+                    L_G = L_g + args.alpha * (1 - L_attack) + args.alpha * L_same #problem, solved by updating pytorch, still do not know why
                     L_D = L_d
                     # optimization
                     optimizer_g.zero_grad()
@@ -573,20 +577,34 @@ def train_op_onlfw_newloss(model, G, D, nowbest_threshold):
                     real_label = Variable(torch.ones(args.patch_batchsize)).cuda()
                     fake_label = Variable(torch.zeros(args.patch_batchsize)).cuda()
 
-                    D_fake = D(adv_patch)
+                    D_fake = D(adv_patch.detach())
                     L_d = softplus(D_fake).mean()
                     #D_fake = D_fake.squeeze(1)
                     #L_g = BCE_loss(D_fake, real_label)#
-                    L_g = softplus(-D_fake).mean()
+                    
                     # D loss
                     D_real = D(x_patch)
                     #D_real = D_real.squeeze(1)
+                    
                     L_d = L_d + softplus(-D_real).mean()
+                    optimizer_d.zero_grad()
                     #L_d = BCE_loss(D_real, real_label) + BCE_loss(D_fake, fake_label)
                     #print(D_real, D_fake)
                     # stick adversarial patches on faces to generate adv face
                     #print('stick on')
                     #adv_patch = adv_patch.repeat(args.face_batchsize,1,1,1)
+                    
+                    # overall loss
+                    #max_dis = torch.Tensor([1])
+                    #max_dis = max_dis.squeeze(0).cuda()
+                    #L_G_part = 
+                    #print('L G part')
+                    L_D = L_d + gradient_penalty(x_patch.data, adv_patch.data, D) * 0.00001
+                    # optimization
+                    
+                    L_D.backward(retain_graph=True)
+                    optimizer_d.step()
+
                     adv_face = stick_patch_on_face(x_face, adv_patch)
                     #print('stick finished')
                     # feed adv face to model
@@ -594,27 +612,21 @@ def train_op_onlfw_newloss(model, G, D, nowbest_threshold):
                     # attack loss
                     #target_face_label = Variable(torch.full(target_batchsize, target_label[0][0])).cuda()
                     #L_attack = CE_loss(adv_logits, target_face_label)
-                    L_attack = predict(model, target_face, adv_face, best_threshold = nowbest_threshold)
+                    D_fake = D(adv_patch)
+                    L_g = softplus(-D_fake).mean()
 
+                    L_attack = predict(model, target_face, adv_face, best_threshold = nowbest_threshold)
+                    L_same = predict(model, x_face, adv_face, best_threshold = nowbest_threshold)
                     L_attack = L_attack.cuda()
-                    # overall loss
-                    #max_dis = torch.Tensor([1])
-                    #max_dis = max_dis.squeeze(0).cuda()
-                    #L_G_part = 
-                    #print('L G part')
-                    L_G = L_g + args.alpha * (1 - L_attack) #problem, solved by updating pytorch, still do not know why
-                    L_D = L_d
-                    # optimization
+                    L_same = L_same.cuda()
                     optimizer_g.zero_grad()
-                    optimizer_d.zero_grad()
                     
-                    
+                    L_G = L_g + args.alpha * (1 - L_attack) + args.alpha * (L_same) #problem, solved by updating pytorch, still do not know why
                     #print('backward G')
                     L_G.backward(retain_graph=True)
                     optimizer_g.step()
                     #print('backward D')
-                    L_D.backward(retain_graph=True)
-                    optimizer_d.step()
+                    
                     #print('backward finished')
                     if(step_patch % 2 == 0):
                         print('now step in target face: ', step_target)
@@ -633,7 +645,7 @@ def train_op_onlfw_newloss(model, G, D, nowbest_threshold):
                         break
 
                 # test acc for validation set
-                if step_face % (128//args.face_batchsize) == 0:
+                if (step_face % (128//args.face_batchsize) == 0 and step_target > 5):
                     #if args.enable_lat:
                     # model.zero_reg()
                     #f.write('[Epoch={}/{}]: step={}/{},'.format(epoch, args.epoch, step, len(train_loader)))
@@ -728,7 +740,7 @@ def load_model(g_path=None, d_path=None):
         print('Load Generator failed')
     else:
         try:
-          #G.load_state_dict(torch.load(g_path))
+          G.load_state_dict(torch.load(g_path))
           print('Successfully load G')
         except:
           print('Load Generator failed')
@@ -736,7 +748,7 @@ def load_model(g_path=None, d_path=None):
         print('Load Discriminator failed')
     else:
         try:
-          #D.load_state_dict(torch.load(d_path))
+          D.load_state_dict(torch.load(d_path))
           print('Successfully load D')
         except:
           print('Load Discriminator failed')
