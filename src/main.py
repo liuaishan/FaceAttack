@@ -312,7 +312,7 @@ def train_op_onlfw(model, G, D, nowbest_threshold):
     #patch_train_loader = Data.DataLoader(dataset=patch_dataset, batch_size=args.patch_batchsize, shuffle=True, drop_last=False)
     set = load_patch_file(args.patch_list)
     patch_dataset = Train_Dataset(args.patch_root, set, transform=transform)
-    patch_train_loader = DataLoader(dataset=patch_dataset, batch_size=args.patch_batchsize, shuffle=True, drop_last=False)
+    patch_train_loader = DataLoader(dataset=patch_dataset, batch_size=1, shuffle=True, drop_last=False)
     print('load patch set')
     print('length of patch set:',patch_train_loader.__len__())
     # original code:
@@ -353,7 +353,7 @@ def train_op_onlfw(model, G, D, nowbest_threshold):
                 x_face = Variable(trainface).cuda()
                 patch_train_loader = Data.DataLoader(dataset=patch_dataset, batch_size=args.patch_batchsize, shuffle=True, drop_last=False)
                 for step_patch, (x_patch, _) in enumerate(patch_train_loader):
-                    #x_patch = x_patch.repeat(args.face_batchsize,1,1,1)#stick patch to one face, or to different face but same identity
+                    x_patch = x_patch.repeat(args.face_batchsize,1,1,1)#stick patch to one face, or to different face but same identity
                     x_patch = Variable(x_patch).cuda()
                     #x_patch_stick = Variable(x_patch_stick).cuda()
                     # feed target face to G to generate adv_patch
@@ -371,7 +371,7 @@ def train_op_onlfw(model, G, D, nowbest_threshold):
                     D_real = D(x_patch)
                     D_real = D_real.squeeze(1)
                     #L_d = L_d + softplus(-D_real).mean()
-                    L_d = BCE_loss(D_real, real_label) + BCE_loss(D_fake, fake_label)+gradient_penalty(x_patch.data, adv_patch.data, D) * 5.0
+                    L_d = BCE_loss(D_real, real_label) + BCE_loss(D_fake, fake_label)#+gradient_penalty(x_patch.data, adv_patch.data, D) * 5.0
                     #print(D_real, D_fake)
                     # stick adversarial patches on faces to generate adv face
                     #print('stick on')
@@ -527,7 +527,7 @@ def train_op_onlfw_newloss(model, G, D, nowbest_threshold):
     #patch_train_loader = Data.DataLoader(dataset=patch_dataset, batch_size=args.patch_batchsize, shuffle=True, drop_last=False)
     set = load_patch_file(args.patch_list)
     patch_dataset = Train_Dataset(args.patch_root, set, transform=transform)
-    patch_train_loader = DataLoader(dataset=patch_dataset, batch_size=args.patch_batchsize, shuffle=True, drop_last=False)
+    patch_train_loader = DataLoader(dataset=patch_dataset, batch_size=1, shuffle=True, drop_last=False)
     print('load patch set')
     print('length of patch set:',patch_train_loader.__len__())
     # original code:
@@ -566,16 +566,16 @@ def train_op_onlfw_newloss(model, G, D, nowbest_threshold):
             #target_face_multi = Variable(target_face_multi).cuda()
             for step_face, (trainface, trainlabel) in enumerate(face_train_loader):
                 x_face = Variable(trainface).cuda()
-                patch_train_loader = Data.DataLoader(dataset=patch_dataset, batch_size=args.patch_batchsize, shuffle=True, drop_last=False)
+                #patch_train_loader = Data.DataLoader(dataset=patch_dataset, batch_size=args.patch_batchsize, shuffle=True, drop_last=False)
                 for step_patch, (x_patch, _) in enumerate(patch_train_loader):
-                    #x_patch = x_patch.repeat(args.face_batchsize,1,1,1)#stick patch to one face, or to different face but same identity
+                    x_patch = x_patch.repeat(args.face_batchsize,1,1,1)#stick patch to one face, or to different face but same identity
                     x_patch = Variable(x_patch).cuda()
                     #x_patch_stick = Variable(x_patch_stick).cuda()
                     # feed target face to G to generate adv_patch
                     adv_patch = G(target_face)
                     # G loss
-                    real_label = Variable(torch.ones(args.patch_batchsize)).cuda()
-                    fake_label = Variable(torch.zeros(args.patch_batchsize)).cuda()
+                    #real_label = Variable(torch.ones(args.patch_batchsize)).cuda()
+                    #fake_label = Variable(torch.zeros(args.patch_batchsize)).cuda()
 
                     D_fake = D(adv_patch.detach())
                     L_d = softplus(D_fake).mean()
@@ -599,7 +599,8 @@ def train_op_onlfw_newloss(model, G, D, nowbest_threshold):
                     #max_dis = max_dis.squeeze(0).cuda()
                     #L_G_part = 
                     #print('L G part')
-                    L_D = L_d + gradient_penalty(x_patch.data, adv_patch.data, D) * 0.00001
+                    r1_penalty = R1Penalty(x_patch.detach(), D)
+                    L_D = L_d + r1_penalty * (5.0)#+ gradient_penalty(x_patch.data, adv_patch.data, D) * 0.00001
                     # optimization
                     
                     L_D.backward(retain_graph=True)
@@ -645,18 +646,18 @@ def train_op_onlfw_newloss(model, G, D, nowbest_threshold):
                         break
 
                 # test acc for validation set
-                if (step_face % (128//args.face_batchsize) == 0 and step_target > 5):
-                    #if args.enable_lat:
-                    # model.zero_reg()
-                    #f.write('[Epoch={}/{}]: step={}/{},'.format(epoch, args.epoch, step, len(train_loader)))
-                    print('epoch={}/{}'.format(epoch, args.epoch))
-                    print('saving model...')
-                    if(totdev==1):
-                        torch.save(G.state_dict(), args.model_g_path + 'faceAttack_G_newloss.pkl')
-                        torch.save(D.state_dict(), args.model_d_path + 'faceAttack_D_newloss.pkl')
-                    else:
-                        torch.save(G.module.state_dict(), args.model_g_path + 'faceAttack_G_newloss.pkl')
-                        torch.save(D.module.state_dict(), args.model_d_path + 'faceAttack_D_newloss.pkl')
+            if (step_target % (96//args.face_batchsize) == 0 ):
+                #if args.enable_lat:
+                # model.zero_reg()
+                #f.write('[Epoch={}/{}]: step={}/{},'.format(epoch, args.epoch, step, len(train_loader)))
+                print('epoch={}/{}'.format(epoch, args.epoch))
+                print('saving model...')
+                if(totdev==1):
+                    torch.save(G.state_dict(), args.model_g_path + 'faceAttack_G_newloss.pkl')
+                    torch.save(D.state_dict(), args.model_d_path + 'faceAttack_D_newloss.pkl')
+                else:
+                    torch.save(G.module.state_dict(), args.model_g_path + 'faceAttack_G_newloss.pkl')
+                    torch.save(D.module.state_dict(), args.model_d_path + 'faceAttack_D_newloss.pkl')
                     #acc = test_op(model,)
     # end for epoch
 

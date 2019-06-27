@@ -129,7 +129,7 @@ class Train_Dataset(torch.utils.data.Dataset):
         return len(self.imgs)
 def load_patch_file(root):
     trainset = []
-    fh = open(root+'patch.txt', 'r')
+    fh = open(root+'patch_one.txt', 'r')
     for line in fh:
         line = line.rstrip()
         words = line.split()
