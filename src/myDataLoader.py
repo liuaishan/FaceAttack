@@ -127,6 +127,7 @@ class Train_Dataset(torch.utils.data.Dataset):
 
     def __len__(self):
         return len(self.imgs)
+    
 def load_patch_file(root):
     trainset = []
     fh = open(root+'patch_one.txt', 'r')
