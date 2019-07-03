@@ -513,7 +513,7 @@ def train_op_onlfw_newloss(model, G, D, nowbest_threshold):
     else:
         trainset, testset = load_file(args.train_face_label_path, args.train_dataset, test=True)
         face_target_dataset = Train_Dataset(args.target_face_path, trainset, transform = transform)
-        target_face_loader = DataLoader(dataset = face_target_dataset, batch_size = args.face_batchsize, shuffle = False, drop_last = False)
+        target_face_loader = DataLoader(dataset = face_target_dataset, batch_size = 1, shuffle = False, drop_last = False)
         print('Total length of target face set: ', target_face_loader.__len__())
     face_train_loader = DataLoader(dataset = face_train_dataset, batch_size = args.face_batchsize, shuffle = True, drop_last = False)
     print('load train set')
@@ -561,7 +561,7 @@ def train_op_onlfw_newloss(model, G, D, nowbest_threshold):
         scheduler_g.step()
         scheduler_d.step()
         for step_target, (target_face, targetlabel) in enumerate(target_face_loader):
-            #target_face = target_face.repeat(args.face_batchsize,1,1,1)#stick patch to one face, or to different face but same identity
+            target_face = target_face.repeat(args.face_batchsize,1,1,1)#stick patch to one face, or to different face but same identity
             target_face = Variable(target_face).cuda()
             #target_face_multi = Variable(target_face_multi).cuda()
             for step_face, (trainface, trainlabel) in enumerate(face_train_loader):
@@ -573,20 +573,23 @@ def train_op_onlfw_newloss(model, G, D, nowbest_threshold):
                     #x_patch_stick = Variable(x_patch_stick).cuda()
                     # feed target face to G to generate adv_patch
                     adv_patch = G(target_face)
+                    face_part = get_face_part(x_face, adv_patch)
                     # G loss
                     #real_label = Variable(torch.ones(args.patch_batchsize)).cuda()
                     #fake_label = Variable(torch.zeros(args.patch_batchsize)).cuda()
 
                     D_fake = D(adv_patch.detach())
+
                     L_d = softplus(D_fake).mean()
                     #D_fake = D_fake.squeeze(1)
                     #L_g = BCE_loss(D_fake, real_label)#
                     
                     # D loss
                     D_real = D(x_patch)
+                    D_real_1 = D(face_part)
                     #D_real = D_real.squeeze(1)
                     
-                    L_d = L_d + softplus(-D_real).mean()
+                    L_d = L_d + softplus(-D_real).mean()+softplus(-D_real_1).mean()
                     optimizer_d.zero_grad()
                     #L_d = BCE_loss(D_real, real_label) + BCE_loss(D_fake, fake_label)
                     #print(D_real, D_fake)
@@ -599,14 +602,15 @@ def train_op_onlfw_newloss(model, G, D, nowbest_threshold):
                     #max_dis = max_dis.squeeze(0).cuda()
                     #L_G_part = 
                     #print('L G part')
-                    r1_penalty = R1Penalty(x_patch.detach(), D)
-                    L_D = L_d + r1_penalty * (5.0)#+ gradient_penalty(x_patch.data, adv_patch.data, D) * 0.00001
+                    #r1_penalty = R1Penalty(x_patch.detach(), D)
+                    L_D = L_d #+ #r1_penalty * (5.0)#+ gradient_penalty(x_patch.data, adv_patch.data, D) * 0.00001
                     # optimization
                     
                     L_D.backward(retain_graph=True)
                     optimizer_d.step()
 
                     adv_face = stick_patch_on_face(x_face, adv_patch)
+                    
                     #print('stick finished')
                     # feed adv face to model
                     #adv_feature = model(adv_face)
@@ -616,13 +620,19 @@ def train_op_onlfw_newloss(model, G, D, nowbest_threshold):
                     D_fake = D(adv_patch)
                     L_g = softplus(-D_fake).mean()
 
+                    #L_attack_eu = predict_eu(model, target_face, adv_face, best_threshold = nowbest_threshold)
+                    #L_same_eu = predict_eu(model, x_face, adv_face, best_threshold = nowbest_threshold)
                     L_attack = predict(model, target_face, adv_face, best_threshold = nowbest_threshold)
+
                     L_same = predict(model, x_face, adv_face, best_threshold = nowbest_threshold)
+                    #L_same_eu = softplus(L_same_eu)
                     L_attack = L_attack.cuda()
                     L_same = L_same.cuda()
+                    #L_attack_eu = L_attack_eu.cuda()
+                    #L_same_eu = L_same_eu.cuda()
                     optimizer_g.zero_grad()
                     
-                    L_G = L_g + args.alpha * (1 - L_attack) + args.alpha * (L_same) #problem, solved by updating pytorch, still do not know why
+                    L_G = L_g + 1000000000 * (1 - L_attack ) + 1000000000 * (L_same) #+ #50 * (11 - L_attack_eu) + 90 * (L_same_eu)#problem, solved by updating pytorch, still do not know why
                     #print('backward G')
                     L_G.backward(retain_graph=True)
                     optimizer_g.step()
@@ -635,6 +645,10 @@ def train_op_onlfw_newloss(model, G, D, nowbest_threshold):
                         Loss_G = '%.2f' % L_G.item()
                         Loss_D = '%.2f' % L_D.item()
                         print('now G loss: ',Loss_G)
+                        print('now L_attack:', L_attack.item())
+                        #print('now L_attack_eu:', L_attack_eu.item())
+                        print('now L_same:', L_same.item())
+                        #print('now L_same_eu:', L_same_eu.item())
                         print('now D loss: ',Loss_D)
                         with open(args.logfile,'a') as output_file:
                             output_file.write('now step in target face '+str(step_target)+'\n')

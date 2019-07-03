@@ -119,6 +119,24 @@ def predict(model, target_face, train_face, best_threshold=0.3001, model_path=No
     distance = distance/f1.size()[0]
     return distance
 
+def predict_eu(model, target_face, train_face, best_threshold=0.3001, model_path=None):
+    #print(target_face.size())
+    #print(train_face.size())
+    f1 = extractDeepFeature_predict(target_face, model)
+    f2 = extractDeepFeature_predict(train_face, model)
+    #print(f1.size())#[1024]
+    #print(f2.size())
+    for i in range(f1.size()[0]):
+        dd1 = f1[i].view(1,len(f1[i]))
+        dd2 = f2[i].view(1,len(f2[i]))
+        if(i==0):
+            distance = torch.dist(f1[i], f2[i], 2)
+        else:
+            distance = distance + torch.dist(f1[i], f2[i], 2)#不能写成+=，这里写+=报错
+    #print(distance.size())
+    distance = distance/f1.size()[0]
+    return distance
+
 def eval(model, model_path=None, is_gray=False):
     predicts = []
     #model.load_state_dict(torch.load(model_path))

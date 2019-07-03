@@ -79,11 +79,13 @@ def test_op(G, model, target_face_id, train_face_id, patch_num):
     target_face_loader = DataLoader(dataset = face_target_dataset, batch_size = 1, shuffle = False, drop_last = False)
     print('length of face target loader',target_face_loader.__len__())
     #randomly find target face to generate patch
+    '''
     for i,(face, label) in enumerate(target_face_loader):
         if(i==target_face_id):
             nowface = face#Variable(face).cuda()
             break
     nowpatch = G(nowface).cuda()
+    '''
     #randomly find the face to be tested
     for i,(face, label) in enumerate(face_test_loader):
         if(i==train_face_id):
@@ -97,15 +99,17 @@ def test_op(G, model, target_face_id, train_face_id, patch_num):
         distance = predict(model, testface,face)
         mindis.append(distance.item())
     '''
+    nowtot=0
     for i,(face, label) in enumerate(target_face_loader):
         face = Variable(face).cuda()
         distance = predict(model, testface,face)
-        mindis.append(distance.item())
+        nowtot += distance.detach().item()
+        mindis.append(distance.detach().item())
         print(distance)
     minlist = getmax(mindis, topk=10)
-    print('original pic',minlist)
+    print('original pic',minlist,nowtot/32.0)
     patch_ori1 = patch_ori.unsqueeze(0)
-
+    nowtot = 0
     face_oripatch = stick_patch_on_face(testface, patch_ori1).cuda()
     mindis = []
     '''
@@ -117,12 +121,13 @@ def test_op(G, model, target_face_id, train_face_id, patch_num):
     for i,(face, label) in enumerate(target_face_loader):
         face = Variable(face).cuda()
         distance = predict(model, face_oripatch, face)
-        mindis.append(distance.item())
+        nowtot += distance.detach().item()
+        mindis.append(distance.detach().item())
         print(distance)
     minlist = getmax(mindis, topk=10)
-    print('with original patch',minlist)
+    print('with original patch',minlist,nowtot/32.0)
 
-    adv_face = stick_patch_on_face(testface, nowpatch).cuda()
+    #adv_face = stick_patch_on_face(testface, nowpatch).cuda()
     mindis = []
     '''
     for i,(face, label) in enumerate(face_test_loader):
@@ -130,13 +135,17 @@ def test_op(G, model, target_face_id, train_face_id, patch_num):
         distance = predict(model, adv_face,face)
         mindis.append(distance.item())
     '''
+    nowtot=0
     for i,(face, label) in enumerate(target_face_loader):
         face = Variable(face).cuda()
+        nowpatch = G(face)
+        adv_face = stick_patch_on_face(testface, nowpatch)
         distance = predict(model, adv_face,face)
-        mindis.append(distance.item())
+        nowtot += distance.detach().item()
+        mindis.append(distance.detach().item())
         print(distance)
     minlist = getmax(mindis, topk=10)
-    print('with adv patch',minlist)
+    print('with adv patch',minlist,nowtot/32.0)
 
 def choose_model():
     if args.model == 'se_resnet_50':
@@ -150,5 +159,5 @@ def choose_model():
 if __name__ == "__main__":
     cnn = choose_model()
     G = StyleGenerator()
-    G.load_state_dict(torch.load(args.model_g_path+'faceAttack_G.pkl'))
-    test_op(G,cnn,50,150,10)
+    G.load_state_dict(torch.load(args.model_g_path+'faceAttack_G_newloss.pkl'))
+    test_op(G,cnn,8,150,0)
