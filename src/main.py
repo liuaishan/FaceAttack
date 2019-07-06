@@ -444,6 +444,7 @@ def train_op_onlfw(model, G, D, nowbest_threshold):
     # end for epoch
 
     #output_file.close()
+import copy
 def train_op_onlfw_newloss(model, G, D, nowbest_threshold):
     G=G.cuda()
     D=D.cuda()
@@ -570,46 +571,28 @@ def train_op_onlfw_newloss(model, G, D, nowbest_threshold):
                 for step_patch, (x_patch, _) in enumerate(patch_train_loader):
                     x_patch = x_patch.repeat(args.face_batchsize,1,1,1)#stick patch to one face, or to different face but same identity
                     x_patch = Variable(x_patch).cuda()
-                    #x_patch_stick = Variable(x_patch_stick).cuda()
-                    # feed target face to G to generate adv_patch
+
                     adv_patch = G(target_face)
-                    face_part = get_face_part(x_face, adv_patch)
-                    # G loss
-                    #real_label = Variable(torch.ones(args.patch_batchsize)).cuda()
-                    #fake_label = Variable(torch.zeros(args.patch_batchsize)).cuda()
 
                     D_fake = D(adv_patch.detach())
 
-                    L_d = softplus(D_fake).mean()
-                    #D_fake = D_fake.squeeze(1)
-                    #L_g = BCE_loss(D_fake, real_label)#
+                    L_d = (D_fake).mean()
                     
                     # D loss
                     D_real = D(x_patch)
-                    D_real_1 = D(face_part)
+                    #D_real_1 = D(face_part)
                     #D_real = D_real.squeeze(1)
                     
-                    L_d = L_d + softplus(-D_real).mean()+softplus(-D_real_1).mean()
+                    L_d = L_d + (-D_real).mean()#+(-D_real_1).mean()
                     optimizer_d.zero_grad()
-                    #L_d = BCE_loss(D_real, real_label) + BCE_loss(D_fake, fake_label)
-                    #print(D_real, D_fake)
-                    # stick adversarial patches on faces to generate adv face
-                    #print('stick on')
-                    #adv_patch = adv_patch.repeat(args.face_batchsize,1,1,1)
-                    
-                    # overall loss
-                    #max_dis = torch.Tensor([1])
-                    #max_dis = max_dis.squeeze(0).cuda()
-                    #L_G_part = 
-                    #print('L G part')
-                    #r1_penalty = R1Penalty(x_patch.detach(), D)
-                    L_D = L_d #+ #r1_penalty * (5.0)#+ gradient_penalty(x_patch.data, adv_patch.data, D) * 0.00001
+
+                    L_D = L_d #+ gradient_penalty(x_patch.data, adv_patch.data, D) * 0.00001
                     # optimization
                     
                     L_D.backward(retain_graph=True)
                     optimizer_d.step()
 
-                    adv_face = stick_patch_on_face(x_face, adv_patch)
+                    adv_face = stick_patch_on_face(copy.deepcopy(x_face), adv_patch)
                     
                     #print('stick finished')
                     # feed adv face to model
@@ -618,7 +601,7 @@ def train_op_onlfw_newloss(model, G, D, nowbest_threshold):
                     #target_face_label = Variable(torch.full(target_batchsize, target_label[0][0])).cuda()
                     #L_attack = CE_loss(adv_logits, target_face_label)
                     D_fake = D(adv_patch)
-                    L_g = softplus(-D_fake).mean()
+                    L_g = (-D_fake).mean()
 
                     #L_attack_eu = predict_eu(model, target_face, adv_face, best_threshold = nowbest_threshold)
                     #L_same_eu = predict_eu(model, x_face, adv_face, best_threshold = nowbest_threshold)
@@ -626,8 +609,8 @@ def train_op_onlfw_newloss(model, G, D, nowbest_threshold):
 
                     L_same = predict(model, x_face, adv_face, best_threshold = nowbest_threshold)
                     #L_same_eu = softplus(L_same_eu)
-                    L_attack = L_attack.cuda()
-                    L_same = L_same.cuda()
+                    L_attack = (L_attack).cuda()
+                    L_same = (L_same).cuda()
                     #L_attack_eu = L_attack_eu.cuda()
                     #L_same_eu = L_same_eu.cuda()
                     optimizer_g.zero_grad()

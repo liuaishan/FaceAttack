@@ -84,8 +84,8 @@ def save_img(img, path):
     img = img * 255
     img = Image.fromarray(img.astype('uint8')).convert('RGB')
     img.save(path)
-
-
+from torch.optim import lr_scheduler
+import copy
 def train_op_optimize(model):
     totdev = 1
     npscal = NPSCalculator(args.print_file,64).cuda()
@@ -128,7 +128,7 @@ def train_op_optimize(model):
 
     optimizer = torch.optim.Adam([adv_patch_cpu], lr=args.lr, weight_decay=1e-4,amsgrad=True)
 
-    scheduler = StepLR(optimizer, milestones=[200,500,800], gamma=0.1)
+    scheduler = lr_scheduler.MultiStepLR(optimizer, milestones=[200,500,800], gamma=0.1)
 
     CE_loss = nn.CrossEntropyLoss()
     BCE_loss = nn.BCELoss()
@@ -157,13 +157,13 @@ def train_op_optimize(model):
                 adv_patch_multi = adv_patch_multi.repeat(args.face_batchsize,1,1,1)
                 adv_patch_multi = adv_patch_multi.cuda()
 
-                adv_face = stick_patch_on_face(x_face, adv_patch_multi)
+                adv_face = stick_patch_on_face(copy.deepcopy(x_face), adv_patch_multi)
                 adv_face = adv_face.cuda()
                 nps = npscal(adv_patch)
                 tv = totvacal(adv_patch)
 
-                nps_loss = nps * 100
-                tv_loss = tv * 500
+                nps_loss = nps * 5
+                tv_loss = tv * 10
                 L_attack = predict(model, target_face, adv_face, 0.3)
                 L_same = predict(model, x_face, adv_face, 0.3)
 
