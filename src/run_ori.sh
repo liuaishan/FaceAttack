@@ -1,8 +1,8 @@
-python main_opt.py \
-  --face_batchsize 8 \
-  --patch_batchsize 8 \
+python main.py \
+  --face_batchsize 16 \
+  --patch_batchsize 16 \
   --epoch 10000 \
-  --lr 0.02 \
+  --lr 0.01 \
   --test_flag 'False' \
   --test_dataset 'lfw' \
   --test_data_path '' \
@@ -25,7 +25,4 @@ python main_opt.py \
   --model_d_path '../' \
   --enable_new_loss 'True' \
   --patch_root '/userhome/dataset/patch/' \
-  --patch_list '/userhome/code/FaceAttack/dataset/' \
-  --save_patch_path '../nowresult.jpg' \
-  --read_patch_path './1.jpg' \
-  --print_file '../dataset/print.txt'
+  --patch_list '/userhome/code/FaceAttack/dataset/'

@@ -48,7 +48,7 @@ def getmax(num_list,topk=3):
     max_num_index=[num_list.index(one) for one in tmp_list[::-1][:topk]]
     return max_num_index
 def test_op(G, model, target_face_id, train_face_id, patch_num):
-    #G = G.cuda()
+    G = G.cuda()
     G.eval()
     model=model.cuda()
     model.eval()
