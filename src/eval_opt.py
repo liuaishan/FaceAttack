@@ -63,16 +63,20 @@ def test_op(G, model, target_face_id, train_face_id, patch_num):
         transforms.ToTensor(),
         transforms.Normalize(mean=(0.5, 0.5, 0.5), std=(0.5, 0.5, 0.5))
     ])
-    with open('../dataset/doodle_small.p','rb') as f:
-        patchset=pickle.load(f)
+    #with open('../dataset/doodle_small.p','rb') as f:
+        #patchset=pickle.load(f)
     #randomly find original patch
-    patch_ori = patchset[patch_num]
-    patch_ori = (patch_ori-0.5) / 0.5
+    #patch_ori = patchset[0]
+    #patch_ori = (patch_ori-0.5) / 0.5
+    from PIL import Image
+    patch_ori = Image.open('1.jpg').convert('RGB')
+    patch_ori = transform(patch_ori).unsqueeze(0).cuda()
     #512 train
     trainset, testset = load_file(args.test_label_path, args.test_dataset)
     trainset_test, testset_test = load_file_test(args.test_label_path, args.test_dataset)
-    trainset1 = [item for item in trainset_test if item not in trainset]
     print('length of file', len(trainset),len(trainset_test))
+    trainset1 = [item for item in trainset_test if item not in trainset]
+
     face_test_dataset = Train_Dataset(args.test_face_path, trainset1, transform = transform)
     face_test_loader = DataLoader(dataset = face_test_dataset, batch_size = 1, shuffle = False, drop_last = False)
     print('length of face test loader',face_test_loader.__len__(), len(trainset1))
@@ -86,9 +90,11 @@ def test_op(G, model, target_face_id, train_face_id, patch_num):
     print('length of face target loader',target_face_loader.__len__(), len(trainset1))
     #randomly find target face to generate patch
     '''
-    for i,(face, label) in enumerate(target_face_loader):
+    for i,(face, label,x,y) in enumerate(target_face_loader):
         if(i==target_face_id):
             nowface = face#Variable(face).cuda()
+            nowx=x
+            nowy=y
             break
     nowpatch = G(nowface).cuda()
     '''
@@ -116,12 +122,12 @@ def test_op(G, model, target_face_id, train_face_id, patch_num):
         #print(distance)
     minlist = getmax(mindis, topk=10)
     print('original pic',minlist,nowtot/target_face_loader.__len__())
-    patch_ori1 = patch_ori.unsqueeze(0)
+    #patch_ori1 = patch_ori.unsqueeze(0)
     nowtot = 0
-    face_oripatch = stick_patch_on_face(copy.deepcopy(testface), patch_ori1,nowy,nowx).cuda()
+    face_oripatch = stick_patch_on_face(copy.deepcopy(testface), (patch_ori),nowy,nowx).cuda()
     mindis = []
     '''
-    for i,(face, label) in enumerate(face_test_loader):
+    for i,(face, label,aa,bb) in enumerate(face_test_loader):
         #face = Variable(face).cuda()
         distance = predict(model, face_oripatch,face)
         mindis.append(distance.item())
@@ -137,17 +143,19 @@ def test_op(G, model, target_face_id, train_face_id, patch_num):
 
     #adv_face = stick_patch_on_face(testface, nowpatch).cuda()
     mindis = []
+    nowtot=0
+    adv_patch = Image.open('../nowresult.jpg').convert('RGB')
+    adv_patch = transform(adv_patch).unsqueeze(0).cuda()
+    adv_face = stick_patch_on_face(copy.deepcopy(testface),(adv_patch),nowy,nowx).cuda()
     '''
     for i,(face, label,aa,bb) in enumerate(face_test_loader):
-        #face = Variable(face).cuda()
+        face = Variable(face).cuda()
         distance = predict(model, adv_face,face)
-        mindis.append(distance.item())
+        nowtot += distance.cpu().detach().item()
+        mindis.append(distance.cpu().detach().item())
     '''
-    nowtot=0
     for i,(face, label,aa,bb) in enumerate(target_face_loader):
         face = Variable(face).cuda()
-        nowpatch = G(face)
-        adv_face = stick_patch_on_face(copy.deepcopy(testface), nowpatch,nowy,nowx).cuda()
         distance = predict(model, adv_face,face)
         nowtot += distance.cpu().detach().item()
         mindis.append(distance.cpu().detach().item())
@@ -166,9 +174,9 @@ def choose_model():
 
 if __name__ == "__main__":
     print()
-    print('now using distance and GAN')
+    print('now using distance and optimization')
     print()
     cnn = choose_model()
     G = StyleGenerator()
-    G.load_state_dict(torch.load(args.model_g_path+'faceAttack_G_newloss.pkl'))
+    #G.load_state_dict(torch.load(args.model_g_path+'faceAttack_G_newloss.pkl'))
     test_op(G,cnn,8,150,0)

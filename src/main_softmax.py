@@ -7,6 +7,7 @@ import torchvision.transforms as transforms
 import torch.utils.data as Data
 from Model.SE_ResNet_IR import *
 from lfw_DataLoader import *
+from Loss.CosineFace import *
 from torch.optim.lr_scheduler import StepLR
 import os
 from myDataLoader import *
@@ -61,6 +62,8 @@ parser.add_argument('--model_d_path',default='', help='save path of discriminato
 parser.add_argument('--enable_new_loss',type=get_bool, default = False, help='whether enable tranditional GAN loss')
 parser.add_argument('--patch_root',default='', help='save path of discriminator')
 parser.add_argument('--patch_list',default='', help='save path of discriminator')
+
+parser.add_argument('--metric_path',default='', help='save path of discriminator')
 # parser.add_argument('--test_loss_acc_path',default='./loss_acc/train_acc/',help='save train acc as .p to draw pic')
 
 args = parser.parse_args()
@@ -445,7 +448,7 @@ def train_op_onlfw(model, G, D, nowbest_threshold):
 
     #output_file.close()
 import copy
-def train_op_onlfw_newloss(model, G, D, nowbest_threshold):
+def train_op_onlfw_newloss(model, G, D, nowbest_threshold , metric):
     G=G.cuda()
     D=D.cuda()
     totdev = 1
@@ -455,6 +458,7 @@ def train_op_onlfw_newloss(model, G, D, nowbest_threshold):
         G = nn.DataParallel(G)
         D = nn.DataParallel(D)
         model = nn.DataParallel(model)
+        metric = nn.DataParallel(metric)
     elif torch.cuda.device_count() == 1:
         print("1 Gpu")
     model.eval()
@@ -544,7 +548,7 @@ def train_op_onlfw_newloss(model, G, D, nowbest_threshold):
 
     scheduler_g = StepLR(optimizer_g, step_size=300, gamma=0.5)
     scheduler_d = StepLR(optimizer_d, step_size=300, gamma=0.5)
-    CE_loss = nn.CrossEntropyLoss()
+    CE_loss = nn.CrossEntropyLoss().cuda()
     BCE_loss = nn.BCELoss()
 
     curr_lr = args.lr
@@ -565,6 +569,7 @@ def train_op_onlfw_newloss(model, G, D, nowbest_threshold):
             target_face = target_face.repeat(args.face_batchsize,1,1,1)#stick patch to one face, or to different face but same identity
             target_face = Variable(target_face).cuda()
             #target_face_multi = Variable(target_face_multi).cuda()
+            targetlabel = Variable(targetlabel.cuda().long())
             for step_face, (trainface, trainlabel,train_x, train_y) in enumerate(face_train_loader):
                 x_face = Variable(trainface).cuda()
                 #patch_train_loader = Data.DataLoader(dataset=patch_dataset, batch_size=args.patch_batchsize, shuffle=True, drop_last=False)
@@ -594,31 +599,19 @@ def train_op_onlfw_newloss(model, G, D, nowbest_threshold):
 
                     adv_face = stick_patch_on_face(copy.deepcopy(x_face), (adv_patch),train_y, train_x)
                     
-                    #print('stick finished')
-                    # feed adv face to model
-                    #adv_feature = model(adv_face)
-                    # attack loss
-                    #target_face_label = Variable(torch.full(target_batchsize, target_label[0][0])).cuda()
-                    #L_attack = CE_loss(adv_logits, target_face_label)
                     D_fake = D(adv_patch)
                     L_g = softplus(-D_fake).mean()
 
-                    #L_attack_eu = predict_eu(model, target_face, adv_face, best_threshold = nowbest_threshold)
-                    #L_same_eu = predict_eu(model, x_face, adv_face, best_threshold = nowbest_threshold)
-                    L_attack = predict(model, target_face, adv_face, best_threshold = nowbest_threshold)
-
-                    L_same = predict(model, x_face, adv_face, best_threshold = nowbest_threshold)
-                    #L_same_eu = softplus(L_same_eu)
-                    L_attack = (L_attack).cuda()
-                    L_same = (L_same).cuda()
-                    #L_attack_eu = L_attack_eu.cuda()
-                    #L_same_eu = L_same_eu.cuda()
+                    adv_logit = model(adv_face)
+                    adv_predict = metric(adv_logit,copy.deepcopy(targetlabel.repeat(args.face_batchsize)))
+                    _, predictions = torch.max(adv_predict,1)
+                    predictions_ll = targetlabel.repeat(args.face_batchsize)
+                    attack_loss = CE_loss(adv_predict, predictions_ll)
+                    model.zero_grad()
+                    metric.zero_grad()
                     optimizer_g.zero_grad()
-                    if(L_g>1):
-                        L_G = L_g + np.power(2.72, np.floor(np.log(L_g.detach().item()))) * (1 - L_attack ) #+ np.power(2.72, np.floor(np.log(L_g.detach().item())-3)) * (L_same) #+ #50 * (11 - L_attack_eu) + 90 * (L_same_eu)#problem, solved by updating pytorch, still do not know why
-                    #print('backward G')
-                    else:
-                        L_G = L_g + 20 * (1 - L_attack ) #+ (L_same) #+ #50 * (11 - L_attack_eu) + 90 * (L_same_eu)#problem, solved by updating pytorch, still do not know why
+                    
+                    L_G = L_g + 0.01 * np.power(2.72, np.floor(np.log(L_g.detach().item()))) * (attack_loss)
                     L_G.backward(retain_graph=True)
                     optimizer_g.step()
                     #print('backward D')
@@ -630,9 +623,9 @@ def train_op_onlfw_newloss(model, G, D, nowbest_threshold):
                         Loss_G = '%.2f' % L_G.item()
                         Loss_D = '%.2f' % L_D.item()
                         print('now G loss: ',Loss_G)
-                        print('now L_attack:', L_attack.item())
+                        print('now L_attack:', attack_loss.item())
                         #print('now L_attack_eu:', L_attack_eu.item())
-                        print('now L_same:', L_same.item())
+                        #print('now L_same:', L_same.item())
                         #print('now L_same_eu:', L_same_eu.item())
                         print('now D loss: ',Loss_D)
                         with open(args.logfile,'a') as output_file:
@@ -652,11 +645,11 @@ def train_op_onlfw_newloss(model, G, D, nowbest_threshold):
                 print('epoch={}/{}'.format(epoch, args.epoch))
                 print('saving model...')
                 if(totdev==1):
-                    torch.save(G.state_dict(), args.model_g_path + 'faceAttack_G_newloss.pkl')
-                    torch.save(D.state_dict(), args.model_d_path + 'faceAttack_D_newloss.pkl')
+                    torch.save(G.state_dict(), args.model_g_path + 'faceAttack_G_newloss_softmax.pkl')
+                    torch.save(D.state_dict(), args.model_d_path + 'faceAttack_D_newloss_softmax.pkl')
                 else:
-                    torch.save(G.module.state_dict(), args.model_g_path + 'faceAttack_G_newloss.pkl')
-                    torch.save(D.module.state_dict(), args.model_d_path + 'faceAttack_D_newloss.pkl')
+                    torch.save(G.module.state_dict(), args.model_g_path + 'faceAttack_G_newloss_softmax.pkl')
+                    torch.save(D.module.state_dict(), args.model_d_path + 'faceAttack_D_newloss_softmax.pkl')
                     #acc = test_op(model,)
     # end for epoch
 
@@ -718,15 +711,17 @@ def test_op(model, G, f=None):
 
 def choose_model():
     # switch models
-    #print(args.model)
     #now the best score is achieved on SE_ResNet_IR 50, which was proposed in ArcFace.
     if args.model == 'se_resnet_50':
         sub_model = SEResNet_IR(50, mode='se_ir')
         sub_model.load_state_dict(torch.load(args.model_path))
+        metric_fc = AddMarginProduct(512, 10575, s=30, m=0.35)
+        metric_fc.load_state_dict(torch.load(args.metric_path))
     elif args.model == 'resnet18':
         pass
     sub_model.cuda()
-    return sub_model
+    metric_fc.cuda()
+    return sub_model,metric_fc
 
 def load_model(g_path=None, d_path=None):
     G = StyleGenerator()
@@ -756,34 +751,13 @@ def load_model(g_path=None, d_path=None):
 
 
 if __name__ == "__main__":
-    '''
-    if os.path.exists(args.model_path) == False:
-        os.makedirs(args.model_path)
-
-
-    if os.path.exists(args.loss_acc_path) == False:
-        os.makedirs(args.loss_acc_path)
-
-    cnn = choose_model()
-
-    if os.path.exists(args.model_path):
-        cnn.load_state_dict(torch.load(args.model_path))
-        print('load substitute model.')
-    else:
-        print("load substitute failed.")
-
-    if args.test_flag:
-        test_op(cnn)
-    else:
-        train_op(cnn)
-    '''
-    cnn = choose_model()
+    cnn,metric_fc = choose_model()
     #nowbest_threshold = eval(cnn, model_path='')
     nowbest_threshold=0.29
     print('Now the best threshold on lfw is: ',nowbest_threshold)
     if(args.enable_new_loss==True):
         print('train with original GAN loss')
-        G, D = load_model(args.model_g_path+ 'faceAttack_G_newloss.pkl',args.model_d_path+ 'faceAttack_D_newloss.pkl')
+        G, D = load_model(args.model_g_path+ 'faceAttack_G_newloss_softmax.pkl',args.model_d_path+ 'faceAttack_D_newloss_softmax.pkl')
     else:
         G, D = load_model(args.model_g_path+ 'faceAttack_G.pkl',args.model_d_path+ 'faceAttack_D.pkl')
     if(args.test_flag):
@@ -791,7 +765,7 @@ if __name__ == "__main__":
     else:
         if(args.enable_new_loss==True):
             print('train with original GAN loss')
-            train_op_onlfw_newloss(cnn, G, D, nowbest_threshold)
+            train_op_onlfw_newloss(cnn, G, D, nowbest_threshold,metric_fc)
         else:
             train_op_onlfw(cnn, G, D, nowbest_threshold)
         print('train finished')

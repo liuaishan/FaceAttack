@@ -115,7 +115,7 @@ class Train_Dataset(torch.utils.data.Dataset):
         self.transform = transform
         self.root = root
     def __getitem__(self, index):
-        fn, label = self.imgs[index]
+        fn, label, xx, yy = self.imgs[index]
         try:
             img = Image.open(self.root + fn).convert('RGB')
             if self.transform is not None:
@@ -123,7 +123,7 @@ class Train_Dataset(torch.utils.data.Dataset):
         except:
             print("failure %s" % fn)
             return None, None
-        return img, label
+        return img, label,xx,yy
 
     def __len__(self):
         return len(self.imgs)
@@ -134,7 +134,7 @@ def load_patch_file(root):
     for line in fh:
         line = line.rstrip()
         words = line.split()
-        trainset.append((words[0], int(words[1]) - 1))
+        trainset.append((words[0], int(words[1]) - 1,0,0))
     return trainset
 def load_file(file_root, dataset, test=False):
     if dataset == 'CelebA':
@@ -196,7 +196,87 @@ def load_file(file_root, dataset, test=False):
                 if (words[0] == fail[k]):
                     k += 1
                     continue
-            trainset.append((words[0], int(words[1])))
+            trainset.append((words[0], int(words[1]), int(float(words[2])), int(float(words[3]))))
+            m = m + 1
+        return trainset, testset
+    if dataset == 'MS1M':
+        datafile = file_root + 'MS1M_list.txt'
+        trainset = []
+        testset = []
+        fh = open(datafile, 'r')
+        m = 0
+        for line in fh:
+            line = line.rstrip()
+            words = line.split()
+            if (words[0] == 'm.015t56/56-FaceId-0.jpg'):
+                continue
+            if (m % 500 == 4):
+                testset.append((words[0], int(words[1])))
+            else:
+                trainset.append((words[0], int(words[1])))
+            m = m + 1
+        return trainset, testset
+def load_file_test(file_root, dataset, test=False):
+    if dataset == 'CelebA':
+        if(test):
+            datafile = file_root + 'CelebA_test.txt'
+        else:
+            datafile = file_root + 'CelebA_list.txt'
+        failfile = file_root + 'CelebA_fail.txt'
+        trainset = []
+        testset = []
+        fh = open(datafile, 'r')
+        failed = open(failfile, 'r')
+        k = 0
+        m = 0
+        fail = []
+        for lines in failed:
+            lines = lines.rstrip()
+            words = lines.split()
+            fail.append(words[0])
+        for line in fh:
+            line = line.rstrip()
+            words = line.split()
+            if (k <= 82):
+                if (words[0] == fail[k]):
+                    k = k + 1
+                    if (k <= 50):
+                        if (fail[k] == '101283.jpg'):
+                            k = k + 1
+                    continue
+            if (words[0] == '101283.jpg'):
+                continue
+            elif (m % 10 == 9):
+                testset.append((words[0], int(words[1]) - 1))
+            else:
+                trainset.append((words[0], int(words[1]) - 1))
+            m = m + 1
+        return trainset, testset
+    if dataset == 'CASIA':
+        if(test):
+            datafile = file_root + 'CASIA_small_target_test.txt'
+        else:
+            datafile = file_root + 'CASIA_small_train_test.txt'
+        failfile = file_root + 'CASIA_fail.txt'
+        trainset = []
+        testset = []
+        fh = open(datafile, 'r')
+        failed = open(failfile, 'r')
+        k = 0
+        m = 0
+        fail = []
+        for line in failed:
+            line = line.rstrip()
+            words = line.split()
+            fail.append(words[1])
+        for line in fh:
+            line = line.rstrip()
+            words = line.split()
+            if (k < 9099):
+                if (words[0] == fail[k]):
+                    k += 1
+                    continue
+            trainset.append((words[0], int(words[1]), int(float(words[2])), int(float(words[3]))))
             m = m + 1
         return trainset, testset
     if dataset == 'MS1M':

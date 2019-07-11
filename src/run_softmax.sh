@@ -1,8 +1,8 @@
-python main.py \
+python main_opt_softmax.py \
   --face_batchsize 8 \
   --patch_batchsize 8 \
   --epoch 10000 \
-  --lr 0.001 \
+  --lr 0.02 \
   --test_flag 'False' \
   --test_dataset 'lfw' \
   --test_data_path '' \
@@ -18,8 +18,16 @@ python main.py \
   --batchnorm 'True' \
   --dropout 'True' \
   --target_dataset 'CASIA' \
-  --logfile 'log_8.txt' \
+  --logfile 'log_16.txt' \
   --loss_acc_path 'train_loss.txt' \
-  --alpha 1 \
+  --alpha 20 \
   --model_g_path '../' \
-  --model_d_path '../'
+  --model_d_path '../' \
+  --enable_new_loss 'True' \
+  --patch_root '/userhome/dataset/patch/' \
+  --patch_list '/userhome/code/FaceAttack/dataset/' \
+  --save_patch_path '../nowresult_softmax.jpg' \
+  --read_patch_path './1.jpg' \
+  --print_file '../dataset/print.txt' \
+  --keep 'False' \
+  --metric_path './margin_res50IR_cos_CA.pkl'

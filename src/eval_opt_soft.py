@@ -14,6 +14,7 @@ from lfw_test import *
 from generator import StyleGenerator
 from discriminator import StyleDiscriminator
 
+from Loss.CosineFace import AddMarginProduct
 from utils import *
 import matplotlib as mpl
 
@@ -47,9 +48,11 @@ def getmax(num_list,topk=3):
     #min_num_index=[num_list.index(one) for one in tmp_list[:topk]]
     max_num_index=[num_list.index(one) for one in tmp_list[::-1][:topk]]
     return max_num_index
-def test_op(G, model, target_face_id, train_face_id, patch_num):
+def test_op(G, model, target_face_id, train_face_id, patch_num, metric):
     G = G.cuda()
     G.eval()
+    metric = metric.cuda()
+    metric.eval()
     model=model.cuda()
     model.eval()
     if torch.cuda.device_count() > 1:
@@ -63,11 +66,14 @@ def test_op(G, model, target_face_id, train_face_id, patch_num):
         transforms.ToTensor(),
         transforms.Normalize(mean=(0.5, 0.5, 0.5), std=(0.5, 0.5, 0.5))
     ])
-    with open('../dataset/doodle_small.p','rb') as f:
-        patchset=pickle.load(f)
+    #with open('../dataset/doodle_small.p','rb') as f:
+        #patchset=pickle.load(f)
     #randomly find original patch
-    patch_ori = patchset[patch_num]
-    patch_ori = (patch_ori-0.5) / 0.5
+    #patch_ori = patchset[0]
+    #patch_ori = (patch_ori-0.5) / 0.5
+    from PIL import Image
+    patch_ori = Image.open('1.jpg').convert('RGB')
+    patch_ori = transform(patch_ori).unsqueeze(0).cuda()
     #512 train
     trainset, testset = load_file(args.test_label_path, args.test_dataset)
     trainset_test, testset_test = load_file_test(args.test_label_path, args.test_dataset)
@@ -100,6 +106,7 @@ def test_op(G, model, target_face_id, train_face_id, patch_num):
             nowy=y
             break
     import copy
+    target_label = torch.Tensor([46]).long().cuda() 
     mindis = []
     '''
     for i,(face, label) in enumerate(face_test_loader):
@@ -108,17 +115,20 @@ def test_op(G, model, target_face_id, train_face_id, patch_num):
         mindis.append(distance.item())
     '''
     nowtot=0
-    for i,(face, label,aa,bb) in enumerate(target_face_loader):
+    correct = 0
+    total = 0
+    for i,(face, label,aa,bb) in enumerate(face_test_loader):
         face = Variable(face).cuda()
-        distance = predict(model, testface,face)
-        nowtot += distance.cpu().detach().item()
-        mindis.append(distance.cpu().detach().item())
-        #print(distance)
-    minlist = getmax(mindis, topk=10)
-    print('original pic',minlist,nowtot/target_face_loader.__len__())
-    patch_ori1 = patch_ori.unsqueeze(0)
+        label = Variable(label.cuda().long())
+        adv_logit = model(face)
+        output = metric(adv_logit,label)
+        _, predicted = torch.max(output.data, 1)#得到每行输出的最大值，即最大概率的分类结果，一共两列，第一列是原始数据，第二列是预测结果，要第二列
+        total += label.size(0)
+        correct += (predicted == target_label).sum().item()
+    print('original pic',100.0 * correct/total)
+    #patch_ori1 = patch_ori.unsqueeze(0)
     nowtot = 0
-    face_oripatch = stick_patch_on_face(copy.deepcopy(testface), patch_ori1,nowy,nowx).cuda()
+    #face_oripatch = stick_patch_on_face(copy.deepcopy(testface), (patch_ori),nowy,nowx).cuda()
     mindis = []
     '''
     for i,(face, label) in enumerate(face_test_loader):
@@ -126,49 +136,55 @@ def test_op(G, model, target_face_id, train_face_id, patch_num):
         distance = predict(model, face_oripatch,face)
         mindis.append(distance.item())
     '''
-    for i,(face, label,aa,bb) in enumerate(target_face_loader):
+    correct = 0
+    total = 0
+    for i,(face, label,aa,bb) in enumerate(face_test_loader):
         face = Variable(face).cuda()
-        distance = predict(model, face_oripatch, face)
-        nowtot += distance.cpu().detach().item()
-        mindis.append(distance.cpu().detach().item())
-        #print(distance)
-    minlist = getmax(mindis, topk=10)
-    print('with original patch',minlist,nowtot/target_face_loader.__len__())
+        label = Variable(label.cuda().long())
+        face_oripatch = stick_patch_on_face(copy.deepcopy(face),patch_ori, bb,aa).cuda()
+        #distance = predict(model, face_oripatch, face)
+        adv_logit = model(face_oripatch)
+        output = metric(adv_logit,label)
+        _, predicted = torch.max(output.data, 1)#得到每行输出的最大值，即最大概率的分类结果，一共两列，第一列是原始数据，第二列是预测结果，要第二列
+        total += label.size(0)
+        correct += (predicted == target_label).sum().item()
+    print('with original patch',100.0 * correct/total)
 
     #adv_face = stick_patch_on_face(testface, nowpatch).cuda()
     mindis = []
-    '''
-    for i,(face, label,aa,bb) in enumerate(face_test_loader):
-        #face = Variable(face).cuda()
-        distance = predict(model, adv_face,face)
-        mindis.append(distance.item())
-    '''
     nowtot=0
-    for i,(face, label,aa,bb) in enumerate(target_face_loader):
+    adv_patch = Image.open('../nowresult_softmax.jpg').convert('RGB')
+    adv_patch = transform(adv_patch).unsqueeze(0).cuda()
+    correct = 0
+    total = 0
+    for i,(face, label,aa,bb) in enumerate(face_test_loader):
         face = Variable(face).cuda()
-        nowpatch = G(face)
-        adv_face = stick_patch_on_face(copy.deepcopy(testface), nowpatch,nowy,nowx).cuda()
-        distance = predict(model, adv_face,face)
-        nowtot += distance.cpu().detach().item()
-        mindis.append(distance.cpu().detach().item())
-        #print(distance)
-    minlist = getmax(mindis, topk=10)
-    print('with adv patch',minlist,nowtot/target_face_loader.__len__())
+        label = Variable(label.cuda().long())
+        #nowpatch = G(face)
+        adv_face = stick_patch_on_face(copy.deepcopy(face), adv_patch,bb,aa).cuda()
+        adv_logit = model(adv_face)
+        output = metric(adv_logit,label)
+        _, predicted = torch.max(output.data, 1)#得到每行输出的最大值，即最大概率的分类结果，一共两列，第一列是原始数据，第二列是预测结果，要第二列
+        total += label.size(0)
+        correct += (predicted == target_label).sum().item()
+    print('with adv patch',100.0 * correct/total)
 
 def choose_model():
     if args.model == 'se_resnet_50':
+        metric_fc = AddMarginProduct(512, 10575, s=30, m=0.35)
         sub_model = SEResNet_IR(50, mode='se_ir')
         sub_model.load_state_dict(torch.load(args.model_path))
+        metric_fc.load_state_dict(torch.load('./margin_res50IR_cos_CA.pkl'))
     elif args.model == 'resnet18':
         pass
     #sub_model.cuda()
-    return sub_model
+    return sub_model,metric_fc
 
 if __name__ == "__main__":
     print()
-    print('now using distance and GAN')
+    print('now using softmax and optimization')
     print()
-    cnn = choose_model()
+    cnn,metric = choose_model()
     G = StyleGenerator()
-    G.load_state_dict(torch.load(args.model_g_path+'faceAttack_G_newloss.pkl'))
-    test_op(G,cnn,8,150,0)
+    #G.load_state_dict(torch.load(args.model_g_path+'faceAttack_G_newloss.pkl'))
+    test_op(G,cnn,8,150,0,metric)

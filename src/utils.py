@@ -106,11 +106,11 @@ def stick_patch_on_face_old(faceTensor, patchTensor):
                 combineTensor = torch.cat([combineTensor,new],0)
                 
     return combineTensor
-def stick_patch_on_face(faceTensor, patchTensor):
+def stick_patch_on_face(faceTensor, patchTensor,x,y):
    
     # position of patch
-    x=140
-    y=160
+    #x=140
+    #y=160
     
     # get batch size of face dataset and patch dataset
     face_bsize = len(faceTensor)
@@ -121,7 +121,7 @@ def stick_patch_on_face(faceTensor, patchTensor):
     k = 0
     for i in range(face_bsize):
         #for j in range(patch_bsize):
-        faceTensor[i][:, x : x+patchTensor.size()[2], y:y + patchTensor.size()[3]] = patchTensor[i][:, :, :] 
+        faceTensor[i][:, x[i] : x[i]+patchTensor.size()[2], y[i]:y[i] + patchTensor.size()[3]] = patchTensor[i][:, :, :] 
         combineTensor[k] = faceTensor[i]
         k = k + 1
     

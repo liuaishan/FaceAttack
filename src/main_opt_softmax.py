@@ -8,6 +8,7 @@ import torch.utils.data as Data
 from Model.SE_ResNet_IR import *
 from lfw_DataLoader import *
 from torch.optim.lr_scheduler import StepLR
+from Loss.CosineFace import *
 import os
 import numpy as np
 from myDataLoader import *
@@ -69,6 +70,7 @@ parser.add_argument('--save_patch_path',default='', help='save path of discrimin
 parser.add_argument('--read_patch_path',default='', help='save path of discriminator')
 parser.add_argument('--print_file',default='', help='save path of discriminator')
 parser.add_argument('--keep',default='True', help='save path of discriminator')
+parser.add_argument('--metric_path',default='', help='save path of discriminator')
 args = parser.parse_args()
 def load_img(path):
     transform = transforms.Compose([
@@ -87,7 +89,7 @@ def save_img(img, path):
     img.save(path)
 from torch.optim import lr_scheduler
 import copy
-def train_op_optimize(model):
+def train_op_optimize(model,metric):
     totdev = 1
     npscal = NPSCalculator(args.print_file,64).cuda()
     totvacal = TotalVariation().cuda()
@@ -97,10 +99,11 @@ def train_op_optimize(model):
         model = nn.DataParallel(model)
         npscal = nn.DataParallel(npscal)
         totvacal = nn.DataParallel(totvacal)
+        metric = nn.DataParallel(metric)
     elif torch.cuda.device_count() == 1:
         print("1 Gpu")
     model.eval()
-    
+    metric.eval()
     transform = transforms.Compose([
         transforms.ToTensor(),
         transforms.Normalize(mean=(0.5, 0.5, 0.5), std=(0.5, 0.5, 0.5))
@@ -136,7 +139,7 @@ def train_op_optimize(model):
 
     scheduler = lr_scheduler.MultiStepLR(optimizer, milestones=[200,500,800], gamma=0.1)
 
-    CE_loss = nn.CrossEntropyLoss()
+    CE_loss = nn.CrossEntropyLoss().cuda()
     BCE_loss = nn.BCELoss()
 
     
@@ -154,30 +157,42 @@ def train_op_optimize(model):
         for step_target, (target_face, targetlabel,target_x, target_y) in enumerate(target_face_loader):
             target_face = target_face.repeat(args.face_batchsize,1,1,1)#stick patch to one face, or to different face but same identity
             target_face = Variable(target_face).cuda()
+            targetlabel = Variable(targetlabel.long()).cuda()
             #target_face_multi = Variable(target_face_multi).cuda()
             for step_face, (trainface, trainlabel,train_x, train_y) in enumerate(face_train_loader):
                 x_face = Variable(trainface).cuda()
+                trainlabel = Variable(trainlabel).cuda()
+                x_face.retain_grad()
                 adv_patch = adv_patch_cpu.cuda()
 
                 adv_patch_multi = adv_patch_cpu.unsqueeze(0)
                 adv_patch_multi = adv_patch_multi.repeat(args.face_batchsize,1,1,1)
                 adv_patch_multi = adv_patch_multi.cuda()
 
-                adv_face = stick_patch_on_face(copy.deepcopy(x_face), (adv_patch_multi),train_y , train_x)
-                #adv_face = stick_patch_on_face(copy.deepcopy(x_face), (adv_patch_multi),[140]*8, [160]*8)
+                adv_face = stick_patch_on_face(copy.deepcopy(x_face), (adv_patch_multi),train_y, train_x)
                 adv_face = adv_face.cuda()
                 nps = npscal(adv_patch)
                 tv = totvacal(adv_patch)
 
                 nps_loss = nps * 5
                 tv_loss = tv * 10
-                L_attack = predict(model, target_face, adv_face, 0.3)
-                L_same = predict(model, x_face, adv_face, 0.3)
+                adv_logit = model(adv_face)
+                adv_predict = metric(adv_logit,copy.deepcopy(targetlabel.repeat(args.face_batchsize)))
+                _, predictions = torch.max(adv_predict,1)
+                predictions_ll = targetlabel.repeat(args.face_batchsize)
+                # Step-LL
+                #_, predictions_ll = torch.min(adv_logit,1)
+                #L_attack = predict(model, target_face, adv_face, 0.3)
+                #L_same = predict(model, x_face, adv_face, 0.3)
+                attack_loss = CE_loss(adv_predict, predictions_ll)
+                model.zero_grad()
+                metric.zero_grad()
 
-                L_attack = L_attack.cuda()
-                L_same = L_same.cuda()
+                #L_attack = L_attack.cuda()
+                #L_same = L_same.cuda()
 
-                attack_loss = 100 * (1 - L_attack)# + 400 * L_same
+
+                #attack_loss = 800 * (1 - L_attack) #+ 400 * L_same
                 loss = attack_loss + nps_loss + torch.max(tv_loss, torch.tensor(0.1).cuda())
 
                 optimizer.zero_grad()
@@ -190,8 +205,8 @@ def train_op_optimize(model):
                 print('epoch={}/{}'.format(epoch, args.epoch))
                 print('saving image')
                 save_img(adv_patch_cpu.detach(),args.save_patch_path)
-                print('now l_attack: ', L_attack.detach().item())
-                print('now l_same: ', L_same.detach().item())
+                print('now l_attack: ', attack_loss.detach().item())
+                #print('now l_same: ', L_same.detach().item())
                 print('now nps loss: ', nps.item())
                 print('now total variable: ', tv.item())
                     #acc = test_op(model,)
@@ -201,16 +216,18 @@ def train_op_optimize(model):
 
 def choose_model():
     # switch models
-    #print(args.model)
     #now the best score is achieved on SE_ResNet_IR 50, which was proposed in ArcFace.
     if args.model == 'se_resnet_50':
         sub_model = SEResNet_IR(50, mode='se_ir')
         sub_model.load_state_dict(torch.load(args.model_path))
+        metric_fc = AddMarginProduct(512, 10575, s=30, m=0.35)
+        metric_fc.load_state_dict(torch.load(args.metric_path))
     elif args.model == 'resnet18':
         pass
     sub_model.cuda()
-    return sub_model
+    metric_fc.cuda()
+    return sub_model,metric_fc
 
 if __name__ == "__main__":
-    cnn = choose_model()
-    train_op_optimize(cnn)
+    cnn,metric_fc = choose_model()
+    train_op_optimize(cnn,metric_fc)

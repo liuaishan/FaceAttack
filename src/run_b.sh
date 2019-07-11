@@ -18,7 +18,7 @@ python main_opt.py \
   --batchnorm 'True' \
   --dropout 'True' \
   --target_dataset 'CASIA' \
-  --logfile 'log_16.txt' \
+  --logfile 'log_opt.txt' \
   --loss_acc_path 'train_loss.txt' \
   --alpha 20 \
   --model_g_path '../' \
@@ -28,4 +28,5 @@ python main_opt.py \
   --patch_list '/userhome/code/FaceAttack/dataset/' \
   --save_patch_path '../nowresult.jpg' \
   --read_patch_path './1.jpg' \
-  --print_file '../dataset/print.txt'
+  --print_file '../dataset/print.txt' \
+  --keep 'True'

@@ -273,11 +273,11 @@ class StyleGenerator(nn.Module):
                  **kwargs
                  ):
         super(StyleGenerator, self).__init__()
-        #self.vgg_all = models.vgg16(pretrained=False)#.features
-        #self.vgg_all.load_state_dict(torch.load('./vgg16-397923af.pth'))
-        #self.vgg = self.vgg_all.features
-        self.vgg = SEResNet_IR(50, mode='se_ir')
-        self.vgg.load_state_dict(torch.load('./params_res50IR_cos_CA.pkl'))
+        self.vgg_all = models.vgg16(pretrained=False)#.features
+        self.vgg_all.load_state_dict(torch.load('./vgg16-397923af.pth'))
+        self.vgg = self.vgg_all.features
+        #self.vgg = SEResNet_IR(50, mode='se_ir')
+        #self.vgg.load_state_dict(torch.load('./params_res50IR_cos_CA.pkl'))
         for para in self.vgg.parameters():
             para.requires_grad = False 
         self.mapping_fmaps = mapping_fmaps
@@ -289,7 +289,7 @@ class StyleGenerator(nn.Module):
         self.synthesis = G_synthesis(self.mapping_fmaps, **kwargs)
 
     def forward(self, image):
-        '''
+        
         _ = self.vgg(image)
         for i in range(0,17):
             image = self.vgg[i](image)  # get pool4 size: 32*32  
@@ -298,8 +298,8 @@ class StyleGenerator(nn.Module):
         image = image.view([shape,-1])
         latents1 = self.input_trans(image)
         dlatents1, num_layers = self.mapping(latents1)
-        '''
-        dlatents1 = self.vgg(image)
+        
+        #dlatents1 = self.vgg(image)
         num_layers = 18
         # let [N, O] -> [N, num_layers, O]
         # 这里的unsqueeze不能使用inplace操作, 如果这样的话, 反向传播的链条会断掉
